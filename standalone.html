@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket Management System</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel Standalone for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        // Icons as React components
+        const iconSize = 24;
+        
+        const ShoppingCart = ({ size = iconSize, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <circle cx="8" cy="21" r="1"/>
+                <circle cx="19" cy="21" r="1"/>
+                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+            </svg>
+        );
+        
+        const LogOut = ({ size = iconSize, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" x2="9" y1="12" y2="12"/>
+            </svg>
+        );
+    </script>
+    
+    <!-- Load the main app component -->
+    <script type="text/babel">
+        // Wait for everything to load, then fetch and execute app.js
+        window.addEventListener('DOMContentLoaded', () => {
+            fetch('app.js')
+                .then(response => response.text())
+                .then(code => {
+                    // Execute the code with Babel transformation
+                    const transformed = Babel.transform(code, { presets: ['react'] }).code;
+                    eval(transformed);
+                })
+                .catch(error => {
+                    console.error('Error loading app.js:', error);
+                    document.getElementById('root').innerHTML = `
+                        <div style="padding: 50px; text-align: center;">
+                            <h1 style="color: red;">Error Loading Application</h1>
+                            <p>Could not load app.js file.</p>
+                            <p style="font-size: 12px; color: #666;">Error: ${error.message}</p>
+                            <p style="margin-top: 20px;">Make sure app.js is in the same folder as this HTML file.</p>
+                        </div>
+                    `;
+                });
+        });
+    </script>
+</body>
+</html>
+

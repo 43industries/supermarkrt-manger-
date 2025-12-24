@@ -1,0 +1,125 @@
+═══════════════════════════════════════════════════════════
+  TWO-MACHINE SETUP - QUICK START GUIDE
+  For Older Hardware (Intel i5-2400, 4GB RAM)
+═══════════════════════════════════════════════════════════
+
+WHAT YOU NEED:
+───────────────────────────────────────────────────────────
+
+MACHINE 1 (Server):
+  ✅ Node.js installed
+  ✅ All system files
+  ✅ WiFi/Ethernet connection
+  ✅ 4GB RAM (already optimized)
+
+MACHINE 2 (Client):
+  ✅ Web browser (Chrome, Edge, Firefox)
+  ✅ Same WiFi network as Machine 1
+  ✅ That's it! No software needed
+
+═══════════════════════════════════════════════════════════
+
+SETUP STEPS:
+───────────────────────────────────────────────────────────
+
+STEP 1: Configure Machine 1 (Server)
+  → Double-click: SETUP_TWO_MACHINES.bat
+  → OR manually:
+    1. Install Node.js (if needed)
+    2. Run: npm install
+    3. Configure firewall (see below)
+
+STEP 2: Start Server on Machine 1
+  → Double-click: START_OPTIMIZED.bat
+  → Note the IP address shown (e.g., 192.168.1.100)
+  → Keep server window open!
+
+STEP 3: Connect Machine 2
+  → Make sure on same WiFi network
+  → Open browser
+  → Go to: http://[MACHINE1-IP]:3000/app.html
+  → Example: http://192.168.1.100:3000/app.html
+  → Login: admin / admin123
+
+═══════════════════════════════════════════════════════════
+
+FINDING IP ADDRESS:
+───────────────────────────────────────────────────────────
+
+On Machine 1:
+  1. Open Command Prompt
+  2. Type: ipconfig
+  3. Look for "IPv4 Address" under WiFi adapter
+  4. Example: 192.168.1.100
+
+OR check server console when it starts!
+
+═══════════════════════════════════════════════════════════
+
+FIREWALL SETUP (One-time, Machine 1):
+───────────────────────────────────────────────────────────
+
+Open Command Prompt as Administrator, then run:
+
+  netsh advfirewall firewall add rule name="Node.js Server" 
+  dir=in action=allow protocol=TCP localport=3000
+
+OR use: SETUP_TWO_MACHINES.bat (run as Administrator)
+
+═══════════════════════════════════════════════════════════
+
+VERIFICATION:
+───────────────────────────────────────────────────────────
+
+Machine 1:
+  [ ] Node.js installed
+  [ ] Dependencies installed (npm install)
+  [ ] Firewall configured
+  [ ] Server running
+  [ ] IP address noted
+
+Machine 2:
+  [ ] Same WiFi network
+  [ ] Browser installed
+  [ ] Can access http://[IP]:3000/app.html
+  [ ] Login works
+
+═══════════════════════════════════════════════════════════
+
+TROUBLESHOOTING:
+───────────────────────────────────────────────────────────
+
+Can't connect from Machine 2?
+  → Check: Server running on Machine 1?
+  → Check: Same WiFi network?
+  → Check: Correct IP address?
+  → Check: Firewall allows port 3000?
+
+Connection refused?
+  → Restart server on Machine 1
+  → Verify IP address (may have changed)
+  → Test: http://localhost:3000/app.html on Machine 1
+
+Slow performance?
+  → Close other applications
+  → Use wired connection for Machine 1
+  → Limit to 2 users on 4GB RAM systems
+
+═══════════════════════════════════════════════════════════
+
+QUICK REFERENCE:
+───────────────────────────────────────────────────────────
+
+Start Server:        START_OPTIMIZED.bat
+Setup/Configure:     SETUP_TWO_MACHINES.bat
+Access URL:          http://[IP]:3000/app.html
+Login Admin:         admin / admin123
+Login Cashier:       cashier / cashier123
+Find IP:             ipconfig
+
+═══════════════════════════════════════════════════════════
+
+For detailed instructions, see: TWO_MACHINE_SETUP.md
+
+═══════════════════════════════════════════════════════════
+

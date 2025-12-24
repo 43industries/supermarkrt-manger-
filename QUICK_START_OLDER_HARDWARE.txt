@@ -1,0 +1,95 @@
+========================================
+SUPERMARKET SYSTEM - QUICK START
+For Older Hardware (4GB RAM Systems)
+========================================
+
+SYSTEM REQUIREMENTS:
+- Intel Core 2 Duo or better
+- 4GB RAM minimum
+- Windows 10/11
+- Node.js 14.x or higher
+
+OPTIMIZED FOR:
+- Intel Core i5-2400 @ 3.10GHz
+- 4GB DDR3 RAM
+- Older/slower systems
+
+========================================
+STARTUP INSTRUCTIONS
+========================================
+
+1. DOUBLE-CLICK: START_OPTIMIZED.bat
+
+   This script:
+   - Automatically checks for Node.js
+   - Installs dependencies if needed
+   - Starts server with memory optimizations
+   - Configures for 4GB RAM systems
+
+2. WAIT for server to start (3-5 seconds)
+
+3. OPEN your browser and go to:
+   http://localhost:3000/app.html
+
+========================================
+LOGIN CREDENTIALS
+========================================
+
+Admin:
+  Username: admin
+  Password: admin123
+
+Cashier:
+  Username: cashier
+  Password: cashier123
+
+========================================
+PERFORMANCE TIPS
+========================================
+
+1. Close other applications before starting
+2. Use Chrome or Edge browser for best performance
+3. Limit to 2-3 simultaneous users on 4GB RAM
+4. If slow, restart the server
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Problem: "Node.js not found"
+Solution: Install Node.js from https://nodejs.org/
+          Use LTS version (16.x or 18.x)
+
+Problem: "Out of Memory" errors
+Solution: Close other applications
+          Make sure you're using START_OPTIMIZED.bat
+
+Problem: Server won't start
+Solution: Run: npm install
+          Then try START_OPTIMIZED.bat again
+
+Problem: Slow performance
+Solution: Close browser tabs
+          Restart computer
+          Check Task Manager for memory usage
+
+========================================
+NETWORK ACCESS (Other Devices)
+========================================
+
+The server can be accessed from other devices:
+
+1. Find your computer's IP address (shown when server starts)
+2. On other devices, open: http://[IP-ADDRESS]:3000/app.html
+3. Make sure devices are on same WiFi network
+
+Example: http://192.168.1.100:3000/app.html
+
+========================================
+MORE INFORMATION
+========================================
+
+See: HARDWARE_COMPATIBILITY.md for detailed info
+
+========================================
+

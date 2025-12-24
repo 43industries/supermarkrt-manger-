@@ -1,0 +1,46 @@
+================================================================================
+                    🚀 DEPLOY TO NETLIFY - 3 EASY STEPS
+================================================================================
+
+STEP 1: Open Netlify Website
+   → Go to: https://app.netlify.com
+   → Sign up (FREE) or Log in with GitHub/Email
+
+STEP 2: Deploy Your Site
+   → Click "Add new site" button
+   → Click "Deploy manually"
+   → DRAG your entire "supermarket system" folder into the upload area
+   → Wait 30-60 seconds
+
+STEP 3: You're Live!
+   → Netlify gives you a URL like: https://random-name-123.netlify.app
+   → Click the URL to open your POS system
+   → Login: admin / admin123
+   → Share the link with your team!
+
+================================================================================
+OPTIONAL: Customize Site Name
+   → Go to Site settings → Change site name
+   → Choose your name (e.g., "mysupermarket")
+   → Your new URL: https://mysupermarket.netlify.app
+================================================================================
+
+WHAT WORKS:
+✅ All POS features
+✅ Product management with buying/selling/market prices
+✅ Sales & receipts
+✅ Daily sales reports with profit breakdown
+✅ Invoice generation
+✅ Debt tracking (supplier debts)
+✅ Buy by amount feature
+✅ All calculations (decimal quantities supported)
+
+IMPORTANT:
+- Data is stored in browser localStorage (per device)
+- Each browser has separate data
+- Export data regularly using CSV export feature
+
+================================================================================
+For detailed instructions, see: NETLIFY_DEPLOY.md
+================================================================================
+

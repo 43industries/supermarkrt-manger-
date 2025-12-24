@@ -1,0 +1,111 @@
+═══════════════════════════════════════════════════════════
+  SOFTWARE REQUIREMENTS CHECKLIST
+═══════════════════════════════════════════════════════════
+
+MACHINE 1 (SERVER) - Software Needed:
+───────────────────────────────────────────────────────────
+
+Required:
+  [ ] Windows 10/11 (already installed)
+  [ ] Node.js (download from nodejs.org)
+      → Download: https://nodejs.org/
+      → Version: 16.x LTS or 18.x LTS
+      → Verify: node --version in Command Prompt
+  [ ] System files (already have)
+  [ ] NPM packages (install by running: npm install)
+
+Optional:
+  [ ] Text editor (Notepad++ or VS Code) - optional
+  [ ] Browser (for testing) - optional
+
+Total New Software: Just Node.js!
+
+═══════════════════════════════════════════════════════════
+
+MACHINE 2 (CLIENT) - Software Needed:
+───────────────────────────────────────────────────────────
+
+Required:
+  [ ] Windows 10/11 (already installed)
+  [ ] Web browser (Chrome, Edge, or Firefox)
+      → Chrome: https://www.google.com/chrome/
+      → Edge: Usually pre-installed
+      → Firefox: https://www.mozilla.org/firefox/
+
+Total New Software: Just a browser (probably already have)!
+
+═══════════════════════════════════════════════════════════
+
+DOWNLOAD LINKS:
+───────────────────────────────────────────────────────────
+
+Node.js (Machine 1):
+  https://nodejs.org/
+  → Choose LTS version (16.x or 18.x)
+
+Chrome (Machine 2):
+  https://www.google.com/chrome/
+
+Firefox (Machine 2):
+  https://www.mozilla.org/firefox/
+
+═══════════════════════════════════════════════════════════
+
+SETUP STEPS:
+───────────────────────────────────────────────────────────
+
+Machine 1 (Server):
+  1. Install Node.js
+  2. Open Command Prompt in system folder
+  3. Run: npm install
+  4. Wait for installation (2-5 minutes)
+  5. Done!
+
+Machine 2 (Client):
+  1. Install browser (if needed)
+  2. That's it!
+
+═══════════════════════════════════════════════════════════
+
+VERIFICATION:
+───────────────────────────────────────────────────────────
+
+Machine 1:
+  → Open Command Prompt
+  → Type: node --version
+  → Should show: v16.x.x or v18.x.x
+  → Type: npm --version
+  → Should show: 8.x.x or 9.x.x
+
+Machine 2:
+  → Open browser
+  → Should work normally
+
+═══════════════════════════════════════════════════════════
+
+DISK SPACE NEEDED:
+───────────────────────────────────────────────────────────
+
+Machine 1: ~400 MB
+Machine 2: ~200-500 MB (just browser)
+
+═══════════════════════════════════════════════════════════
+
+QUICK SUMMARY:
+───────────────────────────────────────────────────────────
+
+Machine 1 needs:
+  ✅ Node.js (download and install)
+
+Machine 2 needs:
+  ✅ Browser (probably already have)
+
+Everything else comes with Windows or is already in the
+system files folder!
+
+═══════════════════════════════════════════════════════════
+
+For detailed information, see: SOFTWARE_REQUIREMENTS.md
+
+═══════════════════════════════════════════════════════════
+

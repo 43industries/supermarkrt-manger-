@@ -1,0 +1,98 @@
+================================================================================
+          🔌 ETHERNET/LAN SETUP - QUICK START
+================================================================================
+
+✅ WORKS WITH ETHERNET CABLES - NO INTERNET NEEDED!
+
+All computers share the same database on your local network.
+
+================================================================================
+SETUP (3 STEPS)
+================================================================================
+
+STEP 1: Choose Server Computer
+   → Pick one computer to run the server
+   → This computer will share data with others
+   → Can also be used as POS terminal
+
+STEP 2: Start Server
+   → Double-click: START_LAN_SERVER.bat
+   → Note the IP address shown
+   → Example: http://192.168.1.100:3000
+   → Keep this window open!
+
+STEP 3: Access from Other Computers
+   → Open browser on other computers
+   → Go to: http://SERVER_IP:3000
+   → Replace SERVER_IP with IP from Step 2
+   → Example: http://192.168.1.100:3000
+   → Done! All computers share data!
+
+================================================================================
+FINDING YOUR IP ADDRESS
+================================================================================
+
+Windows:
+   → Open Command Prompt
+   → Type: ipconfig
+   → Look for "IPv4 Address" (e.g., 192.168.1.100)
+
+Mac/Linux:
+   → Open Terminal
+   → Type: ifconfig
+   → Look for your Ethernet adapter IP
+
+The server also shows your IP when it starts!
+
+================================================================================
+IMPORTANT NOTES
+================================================================================
+
+✅ All computers must be:
+   - On same network (same router/switch)
+   - Connected with Ethernet cables (recommended)
+   - Or on same WiFi network
+
+✅ Server computer:
+   - Must stay running during business hours
+   - Don't close the server window
+   - Can be used as POS terminal too
+
+✅ Firewall:
+   - Windows: Allow Node.js through firewall
+   - Or run as Administrator once to allow
+
+================================================================================
+TESTING
+================================================================================
+
+1. Start server on Computer 1
+2. Open http://SERVER_IP:3000 on Computer 1
+3. Add a test product
+4. Open http://SERVER_IP:3000 on Computer 2
+5. Product should appear! ✅
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Can't connect?
+→ Check server is running
+→ Verify IP address is correct
+→ Check firewall settings
+→ Make sure same network
+
+Server stops?
+→ Check Node.js is installed
+→ Look for error messages
+→ Make sure port 3000 free
+
+Data not syncing?
+→ All computers must use same server IP
+→ Refresh browser
+→ Check server is running
+
+================================================================================
+For detailed guide, see: ETHERNET_SETUP.md
+================================================================================
+

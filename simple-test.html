@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React Test</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        .loading { text-align: center; padding: 50px; }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading">
+            <h2>Loading React...</h2>
+            <p>If this message doesn't disappear, there's a React loading issue.</p>
+        </div>
+    </div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        
+        const App = () => {
+            const [count, setCount] = useState(0);
+            
+            return (
+                <div style={{ textAlign: 'center', marginTop: '100px' }}>
+                    <h1 style={{ color: 'green', fontSize: '48px' }}>✅ React is Working!</h1>
+                    <p style={{ fontSize: '24px', margin: '30px' }}>
+                        Counter: <strong>{count}</strong>
+                    </p>
+                    <button 
+                        onClick={() => setCount(count + 1)}
+                        style={{
+                            background: 'blue',
+                            color: 'white',
+                            padding: '20px 40px',
+                            fontSize: '20px',
+                            border: 'none',
+                            borderRadius: '10px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Click Me!
+                    </button>
+                    <div style={{ marginTop: '50px', padding: '20px', background: '#f0f0f0', borderRadius: '10px', maxWidth: '600px', margin: '50px auto' }}>
+                        <h3>✅ Everything Working:</h3>
+                        <ul style={{ textAlign: 'left', fontSize: '16px' }}>
+                            <li>✓ React Loaded</li>
+                            <li>✓ Babel Transpiling JSX</li>
+                            <li>✓ State Management Working</li>
+                            <li>✓ Event Handlers Working</li>
+                        </ul>
+                    </div>
+                    <a 
+                        href="app-complete.html"
+                        style={{
+                            display: 'inline-block',
+                            marginTop: '30px',
+                            background: 'green',
+                            color: 'white',
+                            padding: '15px 30px',
+                            textDecoration: 'none',
+                            borderRadius: '10px',
+                            fontSize: '18px'
+                        }}
+                    >
+                        Load Full Supermarket App →
+                    </a>
+                </div>
+            );
+        };
+        
+        // Render the app
+        console.log('Starting React render...');
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        console.log('✅ React rendered successfully!');
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,31 @@
+# Netlify Configuration for Supermarket POS System
+# This is a static site deployment using localStorage for data storage
+
+[build]
+  # No build command needed - we're deploying static HTML files
+  publish = "."
+
+# Redirect root to offline application (works offline)
+[[redirects]]
+  from = "/"
+  to = "/complete-system-offline.html"
+  status = 200
+
+# Ensure all files are served correctly
+[[redirects]]
+  from = "/*"
+  to = "/:splat"
+  status = 200
+
+# Headers for better caching (optional)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/libs/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,0 +1,80 @@
+# Netlify Ignore File
+# Exclude unnecessary files from deployment
+
+# Node.js files (not needed for static deployment)
+node_modules/
+package-lock.json
+package.json
+server.js
+database.js
+backup.js
+*.db
+*.db-shm
+*.db-wal
+
+# Development files
+*.bat
+*.md
+*.txt
+*.csv
+*.db
+*.json
+!package.json
+!netlify.toml
+!vercel.json
+
+# Backup files
+backups/
+*.backup
+*-backup.html
+
+# Documentation
+README.md
+DEPLOYMENT_GUIDE.md
+*.md
+!README.md
+
+# Old/unused HTML files (keep only complete-system.html)
+app.html
+app-complete.html
+app.js
+index.html
+hello.html
+simple-test.html
+test.html
+test-app.html
+pos-system.html
+pos-fast.html
+fast-pos.html
+offline-system.html
+offline-loader.js
+standalone.html
+start.html
+system.html
+supermarket-app.html
+supermarket-full.html
+complete-system-backup.html
+supemarket
+
+# JSX files (not used in static deployment)
+*.jsx
+
+# Environment files
+.env
+.env.local
+.env.example
+env-config.txt
+
+# Keep PWA files
+!manifest.json
+!sw.js
+!complete-system-offline.html
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+npm-debug.log*

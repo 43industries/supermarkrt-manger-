@@ -1,0 +1,65 @@
+═══════════════════════════════════════════════════════════
+  MULTI-DEVICE ACCESS - QUICK REFERENCE
+═══════════════════════════════════════════════════════════
+
+✅ YES! The system works on UNLIMITED devices!
+
+HOW TO USE ON MULTIPLE DEVICES:
+───────────────────────────────────────────────────────────
+
+1. START SERVER (on main computer):
+   → Double-click: START_SERVER.bat
+   → Note the IP address shown (e.g., 192.168.1.100)
+
+2. ON THIS COMPUTER:
+   → Open: http://localhost:3000/app.html
+
+3. ON OTHER DEVICES (phones, tablets, other computers):
+   → Make sure they're on the SAME WiFi network
+   → Open: http://[YOUR-IP]:3000/app.html
+   → Example: http://192.168.1.100:3000/app.html
+
+4. LOGIN:
+   → Username: admin / Password: admin123
+   → OR Username: cashier / Password: cashier123
+
+═══════════════════════════════════════════════════════════
+
+WHAT DEVICES CAN USE IT:
+───────────────────────────────────────────────────────────
+✅ Desktop computers
+✅ Laptops  
+✅ Tablets (iPad, Android)
+✅ Smartphones (iPhone, Android)
+✅ Any device with a web browser!
+
+═══════════════════════════════════════════════════════════
+
+REQUIREMENTS:
+───────────────────────────────────────────────────────────
+• Server computer: Node.js + running server
+• Other devices: Just a web browser!
+• All devices: Same WiFi network
+
+═══════════════════════════════════════════════════════════
+
+FIND YOUR IP ADDRESS:
+───────────────────────────────────────────────────────────
+Windows: Open Command Prompt → type: ipconfig
+         Look for "IPv4 Address"
+
+OR: Check the server console when you start it!
+
+═══════════════════════════════════════════════════════════
+
+ALL DEVICES SHARE:
+───────────────────────────────────────────────────────────
+✅ Same product inventory
+✅ Same sales records  
+✅ Same customer database
+✅ Real-time updates!
+
+═══════════════════════════════════════════════════════════
+
+For detailed instructions, see: MULTI_DEVICE_SETUP.md
+

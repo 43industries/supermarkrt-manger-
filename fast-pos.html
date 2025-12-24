@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS System - Fast Edition</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; }
+        
+        /* Layout */
+        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .gap-2 { gap: 8px; }
+        .gap-4 { gap: 16px; }
+        .grid { display: grid; }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        .w-full { width: 100%; }
+        .flex-1 { flex: 1; }
+        
+        /* Spacing */
+        .p-2 { padding: 8px; }
+        .p-3 { padding: 12px; }
+        .p-4 { padding: 16px; }
+        .p-6 { padding: 24px; }
+        .px-4 { padding-left: 16px; padding-right: 16px; }
+        .py-2 { padding-top: 8px; padding-bottom: 8px; }
+        .py-3 { padding-top: 12px; padding-bottom: 12px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-4 { margin-top: 16px; }
+        
+        /* Typography */
+        .text-xs { font-size: 12px; }
+        .text-sm { font-size: 14px; }
+        .text-lg { font-size: 18px; }
+        .text-xl { font-size: 20px; }
+        .text-2xl { font-size: 24px; }
+        .text-3xl { font-size: 30px; }
+        .font-bold { font-weight: 700; }
+        .font-semibold { font-weight: 600; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-white { color: white; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-700 { color: #374151; }
+        .text-green-600 { color: #16a34a; }
+        .text-red-600 { color: #dc2626; }
+        .text-blue-600 { color: #2563eb; }
+        
+        /* Backgrounds */
+        .bg-white { background: white; }
+        .bg-gray-50 { background: #f9fafb; }
+        .bg-gray-100 { background: #f3f4f6; }
+        .bg-blue-500 { background: #3b82f6; }
+        .bg-blue-600 { background: #2563eb; }
+        .bg-green-500 { background: #22c55e; }
+        .bg-green-600 { background: #16a34a; }
+        .bg-red-500 { background: #ef4444; }
+        .bg-red-600 { background: #dc2626; }
+        .bg-yellow-500 { background: #eab308; }
+        .bg-purple-500 { background: #a855f7; }
+        .bg-orange-500 { background: #f97316; }
+        
+        /* Borders & Shadows */
+        .rounded { border-radius: 4px; }
+        .rounded-lg { border-radius: 8px; }
+        .rounded-xl { border-radius: 12px; }
+        .shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .border { border: 1px solid #e5e7eb; }
+        .border-b { border-bottom: 1px solid #e5e7eb; }
+        .border-t { border-top: 1px solid #e5e7eb; }
+        
+        /* Buttons */
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn-blue { background: #2563eb; color: white; }
+        .btn-blue:hover { background: #1d4ed8; }
+        .btn-green { background: #16a34a; color: white; }
+        .btn-green:hover { background: #15803d; }
+        .btn-red { background: #dc2626; color: white; }
+        .btn-red:hover { background: #b91c1c; }
+        .btn-gray { background: #6b7280; color: white; }
+        .btn-gray:hover { background: #4b5563; }
+        
+        /* Form elements */
+        input, select { padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; width: 100%; }
+        input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        
+        /* Cards */
+        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; }
+        
+        /* Product Grid */
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
+        .product-card { background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.15s; text-align: center; }
+        .product-card:hover { border-color: #2563eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .product-card.out-of-stock { opacity: 0.5; pointer-events: none; }
+        
+        /* Cart */
+        .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+        .cart-item:last-child { border-bottom: none; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; background: #e5e7eb; padding: 4px; border-radius: 10px; }
+        .tab { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+        .tab:hover { background: rgba(255,255,255,0.5); }
+        .tab.active { background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: white; border-radius: 12px; max-width: 400px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        
+        /* Receipt */
+        .receipt { font-family: 'Courier New', monospace; max-width: 302px; margin: 0 auto; padding: 16px; font-size: 12px; }
+        .receipt-line { border-top: 1px dashed #000; margin: 8px 0; }
+        
+        /* Login */
+        .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); }
+        .login-box { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); width: 100%; max-width: 400px; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+        
+        /* Print styles */
+        @media print {
+            @page { size: 80mm auto; margin: 0; }
+            body * { visibility: hidden; }
+            .receipt, .receipt * { visibility: visible; }
+            .receipt { position: absolute; left: 0; top: 0; width: 80mm; }
+            .no-print { display: none !important; }
+        }
+        
+        /* Quick actions */
+        .quick-amount { padding: 12px; background: #f3f4f6; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+        .quick-amount:hover { border-color: #2563eb; background: #eff6ff; }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .grid-3 { grid-template-columns: repeat(2, 1fr); }
+            .product-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .grid-3, .grid-2 { grid-template-columns: 1fr; }
+            .tabs { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        const { useState, useEffect, createElement: h } = React;
+        
+        // Store Configuration - EDIT THESE FOR YOUR STORE
+        const STORE_CONFIG = {
+            name: "YOUR STORE NAME",
+            phone: "+254 XXX XXX XXX",
+            email: "store@email.com",
+            pin: "P051234567X",
+            address: "Nairobi, Kenya",
+            currency: "KES"
+        };
+        
+        // Initial sample products
+        const INITIAL_PRODUCTS = [
+            { id: 1, name: "Rice 2kg", barcode: "8901234567890", category: "Grains", costPrice: 180, sellingPrice: 220, stock: 50 },
+            { id: 2, name: "Cooking Oil 1L", barcode: "8901234567891", category: "Oils", costPrice: 250, sellingPrice: 320, stock: 30 },
+            { id: 3, name: "Sugar 1kg", barcode: "8901234567892", category: "Grains", costPrice: 120, sellingPrice: 150, stock: 45 },
+            { id: 4, name: "Milk 500ml", barcode: "8901234567893", category: "Dairy", costPrice: 50, sellingPrice: 65, stock: 100 },
+            { id: 5, name: "Bread", barcode: "8901234567894", category: "Bakery", costPrice: 45, sellingPrice: 55, stock: 25 },
+            { id: 6, name: "Eggs (Tray)", barcode: "8901234567895", category: "Dairy", costPrice: 320, sellingPrice: 400, stock: 20 },
+            { id: 7, name: "Tea Leaves 500g", barcode: "8901234567896", category: "Beverages", costPrice: 180, sellingPrice: 250, stock: 35 },
+            { id: 8, name: "Maize Flour 2kg", barcode: "8901234567897", category: "Grains", costPrice: 110, sellingPrice: 140, stock: 60 },
+            { id: 9, name: "Salt 1kg", barcode: "8901234567898", category: "Spices", costPrice: 30, sellingPrice: 45, stock: 80 },
+            { id: 10, name: "Soap Bar", barcode: "8901234567899", category: "Household", costPrice: 40, sellingPrice: 60, stock: 100 }
+        ];
+        
+        // Users
+        const USERS = [
+            { id: 1, username: "admin", password: "admin123", name: "Admin", role: "admin" },
+            { id: 2, username: "cashier", password: "cashier123", name: "Cashier", role: "cashier" }
+        ];
+        
+        // Local Storage helpers
+        const storage = {
+            get: (key, defaultVal) => {
+                try {
+                    const item = localStorage.getItem('pos_' + key);
+                    return item ? JSON.parse(item) : defaultVal;
+                } catch { return defaultVal; }
+            },
+            set: (key, val) => {
+                try { localStorage.setItem('pos_' + key, JSON.stringify(val)); } catch {}
+            }
+        };
+        
+        // Initial customers
+        const INITIAL_CUSTOMERS = [
+            { id: 1, name: "Walk-in Customer", phone: "", points: 0, totalSpent: 0 },
+            { id: 2, name: "John Doe", phone: "0712345678", points: 150, totalSpent: 15000 },
+            { id: 3, name: "Jane Smith", phone: "0723456789", points: 280, totalSpent: 28000 }
+        ];
+        
+        // Loyalty config: 1 point per 100 KES, 100 points = 100 KES discount
+        const LOYALTY_CONFIG = {
+            pointsPerAmount: 100, // spend 100 KES = 1 point
+            pointValue: 1, // 1 point = 1 KES discount
+            minRedeemPoints: 50 // minimum points to redeem
+        };
+        
+        // Main App Component
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('pos');
+            const [products, setProducts] = useState(() => storage.get('products', INITIAL_PRODUCTS));
+            const [sales, setSales] = useState(() => storage.get('sales', []));
+            const [customers, setCustomers] = useState(() => storage.get('customers', INITIAL_CUSTOMERS));
+            const [cart, setCart] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [barcodeInput, setBarcodeInput] = useState('');
+            const [paymentMethod, setPaymentMethod] = useState('Cash');
+            const [amountReceived, setAmountReceived] = useState(0);
+            const [showReceipt, setShowReceipt] = useState(false);
+            const [lastSale, setLastSale] = useState(null);
+            const [qrCodeUrl, setQrCodeUrl] = useState('');
+            const [selectedCustomer, setSelectedCustomer] = useState(null);
+            const [redeemPoints, setRedeemPoints] = useState(0);
+            const [customerSearch, setCustomerSearch] = useState('');
+            
+            // Save to localStorage
+            useEffect(() => { storage.set('products', products); }, [products]);
+            useEffect(() => { storage.set('sales', sales); }, [sales]);
+            useEffect(() => { storage.set('customers', customers); }, [customers]);
+            
+            // Generate QR code
+            useEffect(() => {
+                if (showReceipt && lastSale && typeof QRCode !== 'undefined') {
+                    QRCode.toDataURL(JSON.stringify({
+                        store: STORE_CONFIG.name,
+                        receipt: lastSale.id,
+                        total: lastSale.total,
+                        date: lastSale.date
+                    }), { width: 80, margin: 1 }).then(setQrCodeUrl).catch(console.error);
+                }
+            }, [showReceipt, lastSale]);
+            
+            // Login
+            if (!user) {
+                return h(LoginScreen, { onLogin: setUser });
+            }
+            
+            // Cart functions
+            const addToCart = (product) => {
+                if (product.stock <= 0) return alert('Out of stock!');
+                const existing = cart.find(i => i.id === product.id);
+                if (existing) {
+                    if (existing.quantity >= product.stock) return alert('Not enough stock!');
+                    setCart(cart.map(i => i.id === product.id ? {...i, quantity: i.quantity + 1} : i));
+                } else {
+                    setCart([...cart, {...product, quantity: 1}]);
+                }
+            };
+            
+            const removeFromCart = (id) => setCart(cart.filter(i => i.id !== id));
+            const updateQuantity = (id, qty) => {
+                if (qty < 1) return removeFromCart(id);
+                const product = products.find(p => p.id === id);
+                if (qty > product.stock) return alert('Not enough stock!');
+                setCart(cart.map(i => i.id === id ? {...i, quantity: qty} : i));
+            };
+            const clearCart = () => setCart([]);
+            
+            const cartTotal = cart.reduce((sum, i) => sum + i.sellingPrice * i.quantity, 0);
+            const cartProfit = cart.reduce((sum, i) => sum + (i.sellingPrice - i.costPrice) * i.quantity, 0);
+            
+            // Barcode scan
+            const handleBarcode = (e) => {
+                if (e.key === 'Enter' && barcodeInput) {
+                    const product = products.find(p => p.barcode === barcodeInput);
+                    if (product) {
+                        addToCart(product);
+                        setBarcodeInput('');
+                    } else {
+                        alert('Product not found: ' + barcodeInput);
+                    }
+                }
+            };
+            
+            // Calculate discount from points
+            const pointsDiscount = redeemPoints * LOYALTY_CONFIG.pointValue;
+            const finalTotal = Math.max(0, cartTotal - pointsDiscount);
+            
+            // Complete sale
+            const completeSale = () => {
+                if (cart.length === 0) return alert('Cart is empty!');
+                const amountToPay = finalTotal;
+                if (paymentMethod === 'Cash' && amountReceived < amountToPay) {
+                    return alert('Insufficient amount! Need ' + STORE_CONFIG.currency + ' ' + amountToPay.toFixed(0));
+                }
+                
+                // Calculate points earned (1 point per 100 KES)
+                const pointsEarned = Math.floor(finalTotal / LOYALTY_CONFIG.pointsPerAmount);
+                
+                const sale = {
+                    id: Date.now(),
+                    date: new Date().toLocaleDateString(),
+                    time: new Date().toLocaleTimeString(),
+                    items: cart,
+                    subtotal: cartTotal,
+                    pointsRedeemed: redeemPoints,
+                    pointsDiscount: pointsDiscount,
+                    total: finalTotal,
+                    profit: cartProfit - pointsDiscount,
+                    paymentMethod,
+                    amountReceived: paymentMethod === 'Cash' ? amountReceived : finalTotal,
+                    change: paymentMethod === 'Cash' ? amountReceived - finalTotal : 0,
+                    cashier: user.name,
+                    customer: selectedCustomer ? selectedCustomer.name : 'Walk-in',
+                    customerId: selectedCustomer ? selectedCustomer.id : null,
+                    pointsEarned: pointsEarned
+                };
+                
+                // Update stock
+                const updatedProducts = products.map(p => {
+                    const cartItem = cart.find(i => i.id === p.id);
+                    return cartItem ? {...p, stock: p.stock - cartItem.quantity} : p;
+                });
+                
+                // Update customer loyalty points
+                if (selectedCustomer && selectedCustomer.id !== 1) {
+                    const updatedCustomers = customers.map(c => {
+                        if (c.id === selectedCustomer.id) {
+                            return {
+                                ...c,
+                                points: c.points - redeemPoints + pointsEarned,
+                                totalSpent: c.totalSpent + finalTotal
+                            };
+                        }
+                        return c;
+                    });
+                    setCustomers(updatedCustomers);
+                }
+                
+                setProducts(updatedProducts);
+                setSales([sale, ...sales]);
+                setLastSale(sale);
+                setShowReceipt(true);
+                setCart([]);
+                setAmountReceived(0);
+                setSelectedCustomer(null);
+                setRedeemPoints(0);
+            };
+            
+            // Filter products
+            const filteredProducts = products.filter(p => 
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.barcode.includes(searchTerm) ||
+                p.category.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+            // Today's stats
+            const today = new Date().toLocaleDateString();
+            const todaySales = sales.filter(s => s.date === today);
+            const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
+            const todayProfit = todaySales.reduce((sum, s) => sum + s.profit, 0);
+            
+            return h('div', { className: 'container' },
+                // Header
+                h('div', { className: 'flex justify-between items-center mb-4 p-4 bg-white rounded-xl shadow' },
+                    h('div', null,
+                        h('h1', { className: 'text-2xl font-bold text-gray-700' }, '🛒 ' + STORE_CONFIG.name),
+                        h('p', { className: 'text-sm text-gray-500' }, 'Logged in as: ' + user.name)
+                    ),
+                    h('div', { className: 'flex gap-2 items-center' },
+                        h('div', { className: 'text-right mr-4' },
+                            h('p', { className: 'text-sm text-gray-500' }, "Today's Sales"),
+                            h('p', { className: 'text-xl font-bold text-green-600' }, STORE_CONFIG.currency + ' ' + todayTotal.toFixed(0))
+                        ),
+                        h('button', { className: 'btn btn-gray', onClick: () => setUser(null) }, '🚪 Logout')
+                    )
+                ),
+                
+                // Tabs
+                h('div', { className: 'tabs mb-4' },
+                    ['pos', 'products', 'customers', 'sales', 'reports'].map(tab =>
+                        h('div', {
+                            key: tab,
+                            className: 'tab' + (activeTab === tab ? ' active' : ''),
+                            onClick: () => setActiveTab(tab)
+                        }, tab === 'pos' ? '💰 POS' : tab === 'products' ? '📦 Products' : tab === 'customers' ? '👥 Customers' : tab === 'sales' ? '📋 Sales' : '📊 Reports')
+                    )
+                ),
+                
+                // Content
+                activeTab === 'pos' && h('div', null,
+                    // BARCODE SCANNER - Big and prominent at top
+                    h('div', { className: 'card mb-4', style: { background: '#1e40af', padding: '20px' } },
+                        h('div', { className: 'flex gap-4 items-center' },
+                            h('div', { style: { fontSize: '40px' } }, '📷'),
+                            h('div', { className: 'flex-1' },
+                                h('label', { className: 'text-white font-bold mb-2 block' }, 'BARCODE SCANNER - Click here and scan'),
+                                h('input', {
+                                    type: 'text',
+                                    placeholder: 'Scan barcode or type manually...',
+                                    value: barcodeInput,
+                                    onChange: (e) => setBarcodeInput(e.target.value),
+                                    onKeyPress: handleBarcode,
+                                    autoFocus: true,
+                                    style: { 
+                                        width: '100%', 
+                                        padding: '15px 20px', 
+                                        fontSize: '20px', 
+                                        fontFamily: 'monospace',
+                                        border: '3px solid #60a5fa',
+                                        borderRadius: '10px'
+                                    }
+                                })
+                            ),
+                            h('button', { 
+                                className: 'btn',
+                                style: { background: '#22c55e', color: 'white', padding: '15px 30px', fontSize: '16px' },
+                                onClick: () => {
+                                    if (barcodeInput) {
+                                        const product = products.find(p => p.barcode === barcodeInput);
+                                        if (product) { addToCart(product); setBarcodeInput(''); }
+                                        else { alert('Product not found: ' + barcodeInput); }
+                                    }
+                                }
+                            }, '✓ ADD')
+                        )
+                    ),
+                    
+                    // Main POS area
+                    h('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: '16px' } },
+                    // Products
+                    h('div', { className: 'card' },
+                        h('div', { className: 'mb-4' },
+                            h('input', {
+                                type: 'text',
+                                placeholder: '🔍 Search products by name or category...',
+                                value: searchTerm,
+                                onChange: (e) => setSearchTerm(e.target.value),
+                                style: { width: '100%', padding: '12px 16px', fontSize: '16px' }
+                            })
+                        ),
+                        h('div', { className: 'product-grid' },
+                            filteredProducts.map(p =>
+                                h('div', {
+                                    key: p.id,
+                                    className: 'product-card' + (p.stock <= 0 ? ' out-of-stock' : ''),
+                                    onClick: () => addToCart(p)
+                                },
+                                    h('div', { className: 'font-semibold text-sm mb-1' }, p.name),
+                                    h('div', { className: 'text-lg font-bold text-blue-600' }, STORE_CONFIG.currency + ' ' + p.sellingPrice),
+                                    h('div', { className: 'text-xs ' + (p.stock < 10 ? 'text-red-600' : 'text-gray-500') }, 
+                                        'Stock: ' + p.stock)
+                                )
+                            )
+                        )
+                    ),
+                    
+                    // Cart
+                    h('div', { className: 'card flex flex-col', style: { height: 'fit-content', maxHeight: '80vh' } },
+                        h('h3', { className: 'font-bold text-lg mb-2' }, '🛒 Cart (' + cart.length + ' items)'),
+                        h('div', { style: { flex: 1, overflowY: 'auto', maxHeight: '300px' } },
+                            cart.length === 0 
+                                ? h('p', { className: 'text-gray-500 text-center py-8' }, 'Cart is empty')
+                                : cart.map(item =>
+                                    h('div', { key: item.id, className: 'cart-item' },
+                                        h('div', null,
+                                            h('div', { className: 'font-semibold' }, item.name),
+                                            h('div', { className: 'text-sm text-gray-500' }, STORE_CONFIG.currency + ' ' + item.sellingPrice + ' each')
+                                        ),
+                                        h('div', { className: 'flex items-center gap-2' },
+                                            h('button', { className: 'btn btn-gray', style: { padding: '4px 10px' }, onClick: () => updateQuantity(item.id, item.quantity - 1) }, '-'),
+                                            h('span', { className: 'font-bold', style: { minWidth: '30px', textAlign: 'center' } }, item.quantity),
+                                            h('button', { className: 'btn btn-blue', style: { padding: '4px 10px' }, onClick: () => updateQuantity(item.id, item.quantity + 1) }, '+'),
+                                            h('button', { className: 'btn btn-red', style: { padding: '4px 10px', marginLeft: '8px' }, onClick: () => removeFromCart(item.id) }, '✕')
+                                        )
+                                    )
+                                )
+                        ),
+                        
+                        // Customer Selection
+                        h('div', { className: 'border-t mt-2 pt-3 mb-3' },
+                            h('label', { className: 'text-sm font-semibold mb-2 block' }, '👤 Customer (for loyalty points):'),
+                            h('div', { className: 'flex gap-2' },
+                                h('input', {
+                                    type: 'text',
+                                    placeholder: 'Search by name or phone...',
+                                    value: customerSearch,
+                                    onChange: (e) => setCustomerSearch(e.target.value),
+                                    style: { flex: 1 }
+                                }),
+                                selectedCustomer && h('button', {
+                                    className: 'btn btn-gray',
+                                    style: { padding: '8px 12px' },
+                                    onClick: () => { setSelectedCustomer(null); setRedeemPoints(0); }
+                                }, '✕')
+                            ),
+                            customerSearch && !selectedCustomer && h('div', { 
+                                className: 'mt-2 border rounded max-h-32 overflow-y-auto',
+                                style: { background: '#fff' }
+                            },
+                                customers.filter(c => 
+                                    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                                    c.phone.includes(customerSearch)
+                                ).map(c =>
+                                    h('div', {
+                                        key: c.id,
+                                        className: 'p-2 hover:bg-gray-100 cursor-pointer border-b',
+                                        onClick: () => { setSelectedCustomer(c); setCustomerSearch(''); }
+                                    },
+                                        h('div', { className: 'font-semibold' }, c.name),
+                                        h('div', { className: 'text-xs text-gray-500' }, c.phone + ' • ' + c.points + ' points')
+                                    )
+                                )
+                            ),
+                            selectedCustomer && h('div', { className: 'mt-2 p-3 bg-purple-50 rounded border border-purple-200' },
+                                h('div', { className: 'flex justify-between items-center' },
+                                    h('div', null,
+                                        h('div', { className: 'font-bold text-purple-700' }, '⭐ ' + selectedCustomer.name),
+                                        h('div', { className: 'text-sm text-purple-600' }, 'Available: ' + selectedCustomer.points + ' points')
+                                    ),
+                                    selectedCustomer.points >= LOYALTY_CONFIG.minRedeemPoints && h('div', null,
+                                        h('label', { className: 'text-xs block mb-1' }, 'Redeem:'),
+                                        h('input', {
+                                            type: 'number',
+                                            value: redeemPoints || '',
+                                            onChange: (e) => setRedeemPoints(Math.min(Number(e.target.value), selectedCustomer.points, cartTotal)),
+                                            style: { width: '80px', padding: '4px 8px' },
+                                            max: Math.min(selectedCustomer.points, cartTotal)
+                                        })
+                                    )
+                                ),
+                                redeemPoints > 0 && h('div', { className: 'mt-2 text-sm text-green-700 font-semibold' },
+                                    '💰 Discount: -' + STORE_CONFIG.currency + ' ' + pointsDiscount
+                                )
+                            )
+                        ),
+                        
+                        // Total
+                        h('div', { className: 'border-t pt-3' },
+                            cartTotal !== finalTotal && h('div', { className: 'flex justify-between text-sm text-gray-500 mb-1' },
+                                h('span', null, 'Subtotal:'),
+                                h('span', null, STORE_CONFIG.currency + ' ' + cartTotal.toFixed(0))
+                            ),
+                            redeemPoints > 0 && h('div', { className: 'flex justify-between text-sm text-green-600 mb-1' },
+                                h('span', null, 'Points discount:'),
+                                h('span', null, '-' + STORE_CONFIG.currency + ' ' + pointsDiscount.toFixed(0))
+                            ),
+                            h('div', { className: 'flex justify-between text-xl font-bold mb-4' },
+                                h('span', null, 'TOTAL:'),
+                                h('span', { className: 'text-green-600' }, STORE_CONFIG.currency + ' ' + finalTotal.toFixed(0))
+                            ),
+                            
+                            // Payment method
+                            h('div', { className: 'flex gap-2 mb-4' },
+                                ['Cash', 'Card', 'M-Pesa'].map(method =>
+                                    h('button', {
+                                        key: method,
+                                        className: 'btn flex-1 ' + (paymentMethod === method ? 'btn-blue' : 'btn-gray'),
+                                        onClick: () => setPaymentMethod(method)
+                                    }, method)
+                                )
+                            ),
+                            
+                            // Cash input
+                            paymentMethod === 'Cash' && h('div', { className: 'mb-4' },
+                                h('label', { className: 'text-sm font-semibold mb-2 block' }, 'Amount Received:'),
+                                h('input', {
+                                    type: 'number',
+                                    value: amountReceived || '',
+                                    onChange: (e) => setAmountReceived(Number(e.target.value)),
+                                    placeholder: 'Enter amount...',
+                                    className: 'text-lg'
+                                }),
+                                h('div', { className: 'grid grid-4 gap-2 mt-2' },
+                                    [50, 100, 200, 500, 1000].map(amt =>
+                                        h('div', {
+                                            key: amt,
+                                            className: 'quick-amount text-center',
+                                            onClick: () => setAmountReceived(amt)
+                                        }, amt)
+                                    )
+                                ),
+                                amountReceived >= finalTotal && h('div', { className: 'mt-2 p-2 bg-green-100 rounded text-green-700 font-bold' },
+                                    'Change: ' + STORE_CONFIG.currency + ' ' + (amountReceived - finalTotal).toFixed(0)
+                                )
+                            ),
+                            
+                            // Buttons
+                            h('div', { className: 'flex gap-2' },
+                                h('button', { className: 'btn btn-gray flex-1', onClick: clearCart }, '🗑️ Clear'),
+                                h('button', { 
+                                    className: 'btn btn-green flex-1', 
+                                    onClick: completeSale,
+                                    disabled: cart.length === 0
+                                }, '✅ Complete Sale')
+                            )
+                        )
+                    )
+                    ) // close grid
+                ), // close pos tab
+                
+                // Products Tab
+                activeTab === 'products' && h(ProductsView, { products, setProducts }),
+                
+                // Customers Tab
+                activeTab === 'customers' && h(CustomersView, { customers, setCustomers }),
+                
+                // Sales Tab
+                activeTab === 'sales' && h(SalesView, { sales }),
+                
+                // Reports Tab
+                activeTab === 'reports' && h(ReportsView, { sales, products, customers }),
+                
+                // Receipt Modal
+                showReceipt && lastSale && h('div', { className: 'modal-overlay' },
+                    h('div', { className: 'modal' },
+                        h('div', { className: 'receipt' },
+                            h('div', { className: 'text-center mb-2' },
+                                h('h2', { className: 'font-bold', style: { fontSize: '16px' } }, STORE_CONFIG.name),
+                                h('p', { style: { fontSize: '10px' } }, 'TAX INVOICE'),
+                                h('p', { style: { fontSize: '10px' } }, 'PIN: ' + STORE_CONFIG.pin),
+                                h('p', { style: { fontSize: '10px' } }, 'Tel: ' + STORE_CONFIG.phone)
+                            ),
+                            h('div', { className: 'receipt-line' }),
+                            h('div', { style: { fontSize: '11px' } },
+                                h('p', null, 'Receipt: #' + String(lastSale.id).slice(-6)),
+                                h('p', null, 'Date: ' + lastSale.date + ' ' + lastSale.time),
+                                h('p', null, 'Cashier: ' + lastSale.cashier),
+                                h('p', null, 'Payment: ' + lastSale.paymentMethod)
+                            ),
+                            h('div', { className: 'receipt-line' }),
+                            h('table', { style: { width: '100%', fontSize: '11px' } },
+                                h('thead', null,
+                                    h('tr', null,
+                                        h('th', { style: { textAlign: 'left' } }, 'Item'),
+                                        h('th', { style: { textAlign: 'center' } }, 'Qty'),
+                                        h('th', { style: { textAlign: 'right' } }, 'Total')
+                                    )
+                                ),
+                                h('tbody', null,
+                                    lastSale.items.map((item, i) =>
+                                        h('tr', { key: i },
+                                            h('td', null, item.name),
+                                            h('td', { style: { textAlign: 'center' } }, item.quantity),
+                                            h('td', { style: { textAlign: 'right' } }, (item.sellingPrice * item.quantity).toFixed(0))
+                                        )
+                                    )
+                                )
+                            ),
+                            h('div', { className: 'receipt-line' }),
+                            h('div', { style: { fontWeight: 'bold', fontSize: '14px' } },
+                                h('div', { className: 'flex justify-between' },
+                                    h('span', null, 'TOTAL:'),
+                                    h('span', null, STORE_CONFIG.currency + ' ' + lastSale.total.toFixed(0))
+                                ),
+                                lastSale.paymentMethod === 'Cash' && h('div', null,
+                                    h('div', { className: 'flex justify-between', style: { fontWeight: 'normal', fontSize: '12px' } },
+                                        h('span', null, 'Cash:'),
+                                        h('span', null, STORE_CONFIG.currency + ' ' + lastSale.amountReceived.toFixed(0))
+                                    ),
+                                    h('div', { className: 'flex justify-between' },
+                                        h('span', null, 'Change:'),
+                                        h('span', null, STORE_CONFIG.currency + ' ' + lastSale.change.toFixed(0))
+                                    )
+                                )
+                            ),
+                            h('div', { className: 'receipt-line' }),
+                            qrCodeUrl && h('div', { className: 'text-center' },
+                                h('img', { src: qrCodeUrl, alt: 'QR', style: { width: '80px', margin: '0 auto' } }),
+                                h('p', { style: { fontSize: '9px' } }, 'Scan for digital receipt')
+                            ),
+                            h('div', { className: 'text-center mt-2', style: { fontSize: '10px' } },
+                                h('p', null, 'Thank you for shopping!'),
+                                h('p', null, 'Goods once sold not returnable')
+                            )
+                        ),
+                        h('div', { className: 'flex gap-2 p-4 no-print' },
+                            h('button', { className: 'btn btn-blue flex-1', onClick: () => window.print() }, '🖨️ Print'),
+                            h('button', { className: 'btn btn-gray flex-1', onClick: () => setShowReceipt(false) }, 'Close')
+                        )
+                    )
+                )
+            );
+        }
+        
+        // Login Screen
+        function LoginScreen({ onLogin }) {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            
+            const handleLogin = () => {
+                const user = USERS.find(u => u.username === username && u.password === password);
+                if (user) {
+                    onLogin(user);
+                } else {
+                    setError('Invalid username or password');
+                }
+            };
+            
+            return h('div', { className: 'login-container' },
+                h('div', { className: 'login-box' },
+                    h('h1', { className: 'text-2xl font-bold text-center mb-2' }, '🛒 POS System'),
+                    h('p', { className: 'text-gray-500 text-center mb-6' }, STORE_CONFIG.name),
+                    error && h('div', { className: 'bg-red-100 text-red-700 p-3 rounded mb-4' }, error),
+                    h('div', { className: 'mb-4' },
+                        h('label', { className: 'block text-sm font-semibold mb-1' }, 'Username'),
+                        h('input', { 
+                            type: 'text', 
+                            value: username, 
+                            onChange: (e) => setUsername(e.target.value),
+                            onKeyPress: (e) => e.key === 'Enter' && handleLogin()
+                        })
+                    ),
+                    h('div', { className: 'mb-6' },
+                        h('label', { className: 'block text-sm font-semibold mb-1' }, 'Password'),
+                        h('input', { 
+                            type: 'password', 
+                            value: password, 
+                            onChange: (e) => setPassword(e.target.value),
+                            onKeyPress: (e) => e.key === 'Enter' && handleLogin()
+                        })
+                    ),
+                    h('button', { className: 'btn btn-blue w-full', onClick: handleLogin }, 'Login'),
+                    h('p', { className: 'text-xs text-gray-400 text-center mt-4' }, 'admin/admin123 or cashier/cashier123')
+                )
+            );
+        }
+        
+        // Products View - with Barcode Scanner for adding
+        function ProductsView({ products, setProducts }) {
+            const [showAdd, setShowAdd] = useState(false);
+            const [scanBarcode, setScanBarcode] = useState('');
+            const [newProduct, setNewProduct] = useState({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', stock: '' });
+            const [editingStock, setEditingStock] = useState(null);
+            const [stockToAdd, setStockToAdd] = useState('');
+            
+            const handleBarcodeScan = (e) => {
+                if (e.key === 'Enter' && scanBarcode) {
+                    // Check if product exists
+                    const existing = products.find(p => p.barcode === scanBarcode);
+                    if (existing) {
+                        // Product exists - prompt to add stock
+                        setEditingStock(existing);
+                        setStockToAdd('');
+                    } else {
+                        // New product - open add form with barcode
+                        setNewProduct({ ...newProduct, barcode: scanBarcode });
+                        setShowAdd(true);
+                    }
+                    setScanBarcode('');
+                }
+            };
+            
+            const addStock = () => {
+                if (editingStock && stockToAdd) {
+                    setProducts(products.map(p => 
+                        p.id === editingStock.id 
+                            ? { ...p, stock: p.stock + Number(stockToAdd) }
+                            : p
+                    ));
+                    setEditingStock(null);
+                    setStockToAdd('');
+                }
+            };
+            
+            const addProduct = () => {
+                if (!newProduct.name || !newProduct.sellingPrice) return alert('Fill required fields (Name and Selling Price)');
+                const product = {
+                    id: Date.now(),
+                    ...newProduct,
+                    costPrice: Number(newProduct.costPrice) || 0,
+                    sellingPrice: Number(newProduct.sellingPrice),
+                    stock: Number(newProduct.stock) || 0
+                };
+                setProducts([...products, product]);
+                setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', stock: '' });
+                setShowAdd(false);
+            };
+            
+            return h('div', null,
+                // Barcode Scanner for Products
+                h('div', { className: 'card mb-4', style: { background: '#059669', padding: '20px' } },
+                    h('div', { className: 'flex gap-4 items-center' },
+                        h('div', { style: { fontSize: '40px' } }, '📦'),
+                        h('div', { className: 'flex-1' },
+                            h('label', { className: 'text-white font-bold mb-2 block' }, 'SCAN BARCODE TO ADD PRODUCT OR STOCK'),
+                            h('input', {
+                                type: 'text',
+                                placeholder: 'Scan product barcode... (existing = add stock, new = add product)',
+                                value: scanBarcode,
+                                onChange: (e) => setScanBarcode(e.target.value),
+                                onKeyPress: handleBarcodeScan,
+                                style: { 
+                                    width: '100%', 
+                                    padding: '15px 20px', 
+                                    fontSize: '18px', 
+                                    fontFamily: 'monospace',
+                                    border: '3px solid #34d399',
+                                    borderRadius: '10px'
+                                }
+                            })
+                        )
+                    ),
+                    h('p', { className: 'text-green-100 text-sm mt-2' }, 
+                        '💡 Scan existing product to add stock, or scan new barcode to add new product')
+                ),
+                
+                h('div', { className: 'card' },
+                    h('div', { className: 'flex justify-between items-center mb-4' },
+                        h('h2', { className: 'text-xl font-bold' }, '📦 Products (' + products.length + ')'),
+                        h('button', { className: 'btn btn-blue', onClick: () => setShowAdd(true) }, '+ Add Product Manually')
+                    ),
+                    h('div', { style: { overflowX: 'auto' } },
+                        h('table', { className: 'w-full', style: { minWidth: '700px' } },
+                            h('thead', null,
+                                h('tr', { className: 'border-b', style: { background: '#f9fafb' } },
+                                    ['Name', 'Barcode', 'Category', 'Cost', 'Price', 'Stock', 'Actions'].map(col =>
+                                        h('th', { key: col, className: 'text-left p-3 font-semibold' }, col)
+                                    )
+                                )
+                            ),
+                            h('tbody', null,
+                                products.map(p =>
+                                    h('tr', { key: p.id, className: 'border-b hover:bg-gray-50' },
+                                        h('td', { className: 'p-3 font-semibold' }, p.name),
+                                        h('td', { className: 'p-3 text-sm text-gray-500 font-mono' }, p.barcode || '-'),
+                                        h('td', { className: 'p-3' }, p.category || '-'),
+                                        h('td', { className: 'p-3' }, STORE_CONFIG.currency + ' ' + p.costPrice),
+                                        h('td', { className: 'p-3 font-bold text-blue-600' }, STORE_CONFIG.currency + ' ' + p.sellingPrice),
+                                        h('td', { className: 'p-3 ' + (p.stock < 10 ? 'text-red-600 font-bold' : 'text-green-600') }, p.stock),
+                                        h('td', { className: 'p-3' },
+                                            h('div', { className: 'flex gap-2' },
+                                                h('button', { 
+                                                    className: 'btn btn-green', 
+                                                    style: { padding: '4px 10px', fontSize: '12px' },
+                                                    onClick: () => { setEditingStock(p); setStockToAdd(''); }
+                                                }, '+Stock'),
+                                                h('button', { 
+                                                    className: 'btn btn-red', 
+                                                    style: { padding: '4px 10px', fontSize: '12px' },
+                                                    onClick: () => {
+                                                        if (confirm('Delete ' + p.name + '?')) {
+                                                            setProducts(products.filter(x => x.id !== p.id));
+                                                        }
+                                                    }
+                                                }, 'Delete')
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                // Add Product Modal
+                showAdd && h('div', { className: 'modal-overlay' },
+                    h('div', { className: 'modal p-6' },
+                        h('h3', { className: 'text-lg font-bold mb-4' }, '➕ Add New Product'),
+                        newProduct.barcode && h('div', { className: 'mb-3 p-2 bg-blue-50 rounded' },
+                            h('span', { className: 'text-sm text-blue-700' }, '📷 Barcode: '),
+                            h('span', { className: 'font-mono font-bold' }, newProduct.barcode)
+                        ),
+                        ['name', 'barcode', 'category', 'costPrice', 'sellingPrice', 'stock'].map(field =>
+                            h('div', { key: field, className: 'mb-3' },
+                                h('label', { className: 'block text-sm font-semibold mb-1' }, 
+                                    field === 'costPrice' ? 'Cost Price' : 
+                                    field === 'sellingPrice' ? 'Selling Price *' :
+                                    field === 'name' ? 'Product Name *' :
+                                    field.charAt(0).toUpperCase() + field.slice(1)
+                                ),
+                                h('input', {
+                                    type: ['costPrice', 'sellingPrice', 'stock'].includes(field) ? 'number' : 'text',
+                                    value: newProduct[field],
+                                    onChange: (e) => setNewProduct({...newProduct, [field]: e.target.value}),
+                                    placeholder: field === 'category' ? 'e.g. Grains, Dairy, Beverages' : ''
+                                })
+                            )
+                        ),
+                        h('div', { className: 'flex gap-2 mt-4' },
+                            h('button', { className: 'btn btn-gray flex-1', onClick: () => { setShowAdd(false); setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', stock: '' }); } }, 'Cancel'),
+                            h('button', { className: 'btn btn-green flex-1', onClick: addProduct }, '✓ Add Product')
+                        )
+                    )
+                ),
+                
+                // Add Stock Modal
+                editingStock && h('div', { className: 'modal-overlay' },
+                    h('div', { className: 'modal p-6' },
+                        h('h3', { className: 'text-lg font-bold mb-4' }, '📦 Add Stock'),
+                        h('div', { className: 'p-4 bg-gray-50 rounded mb-4' },
+                            h('div', { className: 'font-bold text-lg' }, editingStock.name),
+                            h('div', { className: 'text-sm text-gray-500' }, 'Barcode: ' + (editingStock.barcode || 'N/A')),
+                            h('div', { className: 'text-sm mt-2' }, 'Current Stock: ', h('span', { className: 'font-bold text-blue-600' }, editingStock.stock))
+                        ),
+                        h('div', { className: 'mb-4' },
+                            h('label', { className: 'block text-sm font-semibold mb-2' }, 'Quantity to Add:'),
+                            h('input', {
+                                type: 'number',
+                                value: stockToAdd,
+                                onChange: (e) => setStockToAdd(e.target.value),
+                                placeholder: 'Enter quantity...',
+                                autoFocus: true,
+                                style: { fontSize: '20px', padding: '12px' }
+                            })
+                        ),
+                        stockToAdd && h('div', { className: 'p-3 bg-green-50 rounded mb-4' },
+                            h('span', { className: 'text-green-700' }, 'New stock will be: '),
+                            h('span', { className: 'font-bold text-green-700' }, editingStock.stock + Number(stockToAdd))
+                        ),
+                        h('div', { className: 'flex gap-2' },
+                            h('button', { className: 'btn btn-gray flex-1', onClick: () => setEditingStock(null) }, 'Cancel'),
+                            h('button', { className: 'btn btn-green flex-1', onClick: addStock }, '✓ Add Stock')
+                        )
+                    )
+                )
+            );
+        }
+        
+        // Customers View
+        function CustomersView({ customers, setCustomers }) {
+            const [showAdd, setShowAdd] = useState(false);
+            const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            const addCustomer = () => {
+                if (!newCustomer.name) return alert('Please enter customer name');
+                const customer = {
+                    id: Date.now(),
+                    name: newCustomer.name,
+                    phone: newCustomer.phone || '',
+                    points: 0,
+                    totalSpent: 0
+                };
+                setCustomers([...customers, customer]);
+                setNewCustomer({ name: '', phone: '' });
+                setShowAdd(false);
+            };
+            
+            const filteredCustomers = customers.filter(c =>
+                c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.phone.includes(searchTerm)
+            );
+            
+            const totalPoints = customers.reduce((sum, c) => sum + c.points, 0);
+            
+            return h('div', null,
+                // Stats
+                h('div', { className: 'grid grid-3 gap-4 mb-4' },
+                    h('div', { className: 'card text-center', style: { background: '#8b5cf6', color: 'white' } },
+                        h('div', { className: 'text-3xl font-bold' }, customers.length),
+                        h('div', { className: 'text-sm opacity-80' }, 'Total Customers')
+                    ),
+                    h('div', { className: 'card text-center', style: { background: '#f59e0b', color: 'white' } },
+                        h('div', { className: 'text-3xl font-bold' }, totalPoints.toLocaleString()),
+                        h('div', { className: 'text-sm opacity-80' }, 'Total Points Outstanding')
+                    ),
+                    h('div', { className: 'card text-center', style: { background: '#10b981', color: 'white' } },
+                        h('div', { className: 'text-3xl font-bold' }, STORE_CONFIG.currency + ' ' + customers.reduce((sum, c) => sum + c.totalSpent, 0).toLocaleString()),
+                        h('div', { className: 'text-sm opacity-80' }, 'Total Customer Spending')
+                    )
+                ),
+                
+                h('div', { className: 'card' },
+                    h('div', { className: 'flex justify-between items-center mb-4 gap-4' },
+                        h('h2', { className: 'text-xl font-bold' }, '👥 Customers'),
+                        h('input', {
+                            type: 'text',
+                            placeholder: '🔍 Search customers...',
+                            value: searchTerm,
+                            onChange: (e) => setSearchTerm(e.target.value),
+                            style: { width: '250px' }
+                        }),
+                        h('button', { className: 'btn btn-blue', onClick: () => setShowAdd(true) }, '+ Add Customer')
+                    ),
+                    h('div', { style: { overflowX: 'auto' } },
+                        h('table', { className: 'w-full' },
+                            h('thead', null,
+                                h('tr', { className: 'border-b', style: { background: '#f9fafb' } },
+                                    ['Name', 'Phone', 'Points', 'Total Spent', 'Actions'].map(col =>
+                                        h('th', { key: col, className: 'text-left p-3 font-semibold' }, col)
+                                    )
+                                )
+                            ),
+                            h('tbody', null,
+                                filteredCustomers.map(c =>
+                                    h('tr', { key: c.id, className: 'border-b hover:bg-gray-50' },
+                                        h('td', { className: 'p-3 font-semibold' }, c.name),
+                                        h('td', { className: 'p-3 text-gray-600' }, c.phone || '-'),
+                                        h('td', { className: 'p-3' }, 
+                                            h('span', { className: 'px-3 py-1 rounded-full text-sm font-bold', style: { background: '#fef3c7', color: '#d97706' } }, 
+                                                '⭐ ' + c.points
+                                            )
+                                        ),
+                                        h('td', { className: 'p-3 font-semibold text-green-600' }, STORE_CONFIG.currency + ' ' + c.totalSpent.toLocaleString()),
+                                        h('td', { className: 'p-3' },
+                                            c.id !== 1 && h('button', { 
+                                                className: 'btn btn-red', 
+                                                style: { padding: '4px 10px', fontSize: '12px' },
+                                                onClick: () => {
+                                                    if (confirm('Delete customer ' + c.name + '?')) {
+                                                        setCustomers(customers.filter(x => x.id !== c.id));
+                                                    }
+                                                }
+                                            }, 'Delete')
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                
+                // Add Customer Modal
+                showAdd && h('div', { className: 'modal-overlay' },
+                    h('div', { className: 'modal p-6' },
+                        h('h3', { className: 'text-lg font-bold mb-4' }, '➕ Add New Customer'),
+                        h('div', { className: 'mb-4' },
+                            h('label', { className: 'block text-sm font-semibold mb-1' }, 'Customer Name *'),
+                            h('input', {
+                                type: 'text',
+                                value: newCustomer.name,
+                                onChange: (e) => setNewCustomer({...newCustomer, name: e.target.value}),
+                                placeholder: 'Enter full name...'
+                            })
+                        ),
+                        h('div', { className: 'mb-4' },
+                            h('label', { className: 'block text-sm font-semibold mb-1' }, 'Phone Number'),
+                            h('input', {
+                                type: 'tel',
+                                value: newCustomer.phone,
+                                onChange: (e) => setNewCustomer({...newCustomer, phone: e.target.value}),
+                                placeholder: 'e.g. 0712345678'
+                            })
+                        ),
+                        h('div', { className: 'p-3 bg-purple-50 rounded mb-4 text-sm text-purple-700' },
+                            '💡 New customers start with 0 points. They earn 1 point for every ' + STORE_CONFIG.currency + ' ' + LOYALTY_CONFIG.pointsPerAmount + ' spent.'
+                        ),
+                        h('div', { className: 'flex gap-2' },
+                            h('button', { className: 'btn btn-gray flex-1', onClick: () => setShowAdd(false) }, 'Cancel'),
+                            h('button', { className: 'btn btn-green flex-1', onClick: addCustomer }, '✓ Add Customer')
+                        )
+                    )
+                )
+            );
+        }
+        
+        // Sales View
+        function SalesView({ sales }) {
+            return h('div', { className: 'card' },
+                h('h2', { className: 'text-xl font-bold mb-4' }, '📋 Sales History (' + sales.length + ')'),
+                h('div', { style: { overflowX: 'auto' } },
+                    h('table', { className: 'w-full', style: { minWidth: '900px' } },
+                        h('thead', null,
+                            h('tr', { className: 'border-b', style: { background: '#f9fafb' } },
+                                ['Date', 'Time', 'Customer', 'Items', 'Total', 'Points', 'Payment', 'Cashier'].map(col =>
+                                    h('th', { key: col, className: 'text-left p-3 font-semibold' }, col)
+                                )
+                            )
+                        ),
+                        h('tbody', null,
+                            sales.slice(0, 50).map(s =>
+                                h('tr', { key: s.id, className: 'border-b hover:bg-gray-50' },
+                                    h('td', { className: 'p-3' }, s.date),
+                                    h('td', { className: 'p-3' }, s.time),
+                                    h('td', { className: 'p-3' }, s.customer || 'Walk-in'),
+                                    h('td', { className: 'p-3' }, s.items.length),
+                                    h('td', { className: 'p-3 font-bold' }, STORE_CONFIG.currency + ' ' + s.total.toFixed(0)),
+                                    h('td', { className: 'p-3' }, 
+                                        s.pointsEarned ? h('span', { className: 'text-green-600' }, '+' + s.pointsEarned) : '-',
+                                        s.pointsRedeemed ? h('span', { className: 'text-red-600 ml-2' }, '-' + s.pointsRedeemed) : null
+                                    ),
+                                    h('td', { className: 'p-3' }, s.paymentMethod),
+                                    h('td', { className: 'p-3' }, s.cashier)
+                                )
+                            )
+                        )
+                )
+            );
+        }
+        
+        // Reports View
+        function ReportsView({ sales, products }) {
+            const today = new Date().toLocaleDateString();
+            const todaySales = sales.filter(s => s.date === today);
+            const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+            const totalProfit = sales.reduce((sum, s) => sum + s.profit, 0);
+            const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+            const todayProfit = todaySales.reduce((sum, s) => sum + s.profit, 0);
+            const lowStock = products.filter(p => p.stock < 10);
+            
+            return h('div', null,
+                h('div', { className: 'grid grid-4 gap-4 mb-4' },
+                    [
+                        { label: "Today's Sales", value: STORE_CONFIG.currency + ' ' + todayRevenue.toFixed(0), color: 'bg-blue-500' },
+                        { label: "Today's Profit", value: STORE_CONFIG.currency + ' ' + todayProfit.toFixed(0), color: 'bg-green-500' },
+                        { label: 'Total Revenue', value: STORE_CONFIG.currency + ' ' + totalRevenue.toFixed(0), color: 'bg-purple-500' },
+                        { label: 'Total Profit', value: STORE_CONFIG.currency + ' ' + totalProfit.toFixed(0), color: 'bg-orange-500' }
+                    ].map((stat, i) =>
+                        h('div', { key: i, className: stat.color + ' text-white p-4 rounded-xl' },
+                            h('p', { className: 'text-sm opacity-80' }, stat.label),
+                            h('p', { className: 'text-2xl font-bold' }, stat.value)
+                        )
+                    )
+                ),
+                lowStock.length > 0 && h('div', { className: 'card mb-4' },
+                    h('h3', { className: 'font-bold text-red-600 mb-2' }, '⚠️ Low Stock Alert (' + lowStock.length + ' items)'),
+                    h('div', { className: 'flex flex-wrap gap-2' },
+                        lowStock.map(p =>
+                            h('span', { key: p.id, className: 'bg-red-100 text-red-700 px-3 py-1 rounded' },
+                                p.name + ' (' + p.stock + ' left)'
+                            )
+                        )
+                    )
+                ),
+                h('div', { className: 'card' },
+                    h('h3', { className: 'font-bold mb-2' }, '📊 Payment Methods'),
+                    h('div', { className: 'grid grid-3 gap-4' },
+                        ['Cash', 'Card', 'M-Pesa'].map(method => {
+                            const methodSales = sales.filter(s => s.paymentMethod === method);
+                            const methodTotal = methodSales.reduce((sum, s) => sum + s.total, 0);
+                            return h('div', { key: method, className: 'p-4 bg-gray-50 rounded-lg' },
+                                h('p', { className: 'font-semibold' }, method),
+                                h('p', { className: 'text-xl font-bold' }, STORE_CONFIG.currency + ' ' + methodTotal.toFixed(0)),
+                                h('p', { className: 'text-sm text-gray-500' }, methodSales.length + ' transactions')
+                            );
+                        })
+                    )
+                )
+            );
+        }
+        
+        // Render
+        ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+</body>
+</html>
+

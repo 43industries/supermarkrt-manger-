@@ -1,0 +1,45 @@
+HOW TO CLEAR CHROME CACHE TO SEE LATEST CHANGES
+================================================
+
+METHOD 1: Hard Refresh (Easiest)
+---------------------------------
+1. Open the app in Chrome
+2. Press: Ctrl + Shift + R  (or Ctrl + F5)
+3. This forces Chrome to reload everything
+
+METHOD 2: Clear Cache for This Site
+------------------------------------
+1. Press F12 to open Developer Tools
+2. Right-click the refresh button (next to address bar)
+3. Select "Empty Cache and Hard Reload"
+
+METHOD 3: Clear All Cache
+--------------------------
+1. Press Ctrl + Shift + Delete
+2. Select "Cached images and files"
+3. Time range: "All time"
+4. Click "Clear data"
+5. Close and reopen Chrome
+
+METHOD 4: Disable Cache (For Development)
+------------------------------------------
+1. Press F12 to open Developer Tools
+2. Go to Network tab
+3. Check "Disable cache"
+4. Keep Developer Tools open while using the app
+
+OFFLINE MODE FIX
+================
+The app needs internet for the FIRST load to download libraries.
+After that, it works offline if browser cache is intact.
+
+If offline mode shows blank:
+1. Connect to internet
+2. Open the app once (let it fully load)
+3. Disconnect internet
+4. It should work offline now
+
+For true offline (no internet needed):
+- The libs/ folder should have local copies
+- Or use a local server (START_SERVER.bat)
+

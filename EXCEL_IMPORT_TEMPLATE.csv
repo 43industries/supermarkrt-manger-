@@ -1,0 +1,10 @@
+Barcode,Name,Category,Cost Price,Selling Price,Stock,Reorder Level,Supplier
+8901234567890,Rice 5kg,Grains,450,650,45,10,ABC Distributors
+8901234567891,Cooking Oil 2L,Oils,280,380,8,15,ABC Distributors
+8901234567892,Sugar 1kg,Sweeteners,95,135,120,20,ABC Distributors
+8901234567893,Milk 1L,Dairy,55,80,5,25,Fresh Foods Ltd
+8901234567894,Bread Loaf,Bakery,35,55,30,10,Fresh Foods Ltd
+8901234567895,Tea 250g,Beverages,180,250,60,15,ABC Distributors
+8901234567896,Product Name Optional,Category Optional,0,0,0,10,Supplier Optional
+8901234567897,Another Product,,,,
+

@@ -1,0 +1,51 @@
+╔══════════════════════════════════════════════════════════╗
+║         QUICK START - Choose Your Method                  ║
+╚══════════════════════════════════════════════════════════╝
+
+METHOD 1: AUTO START (Recommended - Easiest)
+───────────────────────────────────────────────────────────
+→ Double-click: AUTO_START.bat
+→ It will:
+  ✓ Check Node.js
+  ✓ Install dependencies (if needed)
+  ✓ Start the server
+  ✓ Show you the URL
+
+METHOD 2: FIX AND START (If having issues)
+───────────────────────────────────────────────────────────
+→ Double-click: FIX_AND_START.bat
+→ This will:
+  ✓ Clean old dependencies
+  ✓ Reinstall everything fresh
+  ✓ Start the server
+
+METHOD 3: MANUAL START (If dependencies installed)
+───────────────────────────────────────────────────────────
+→ Double-click: START_SERVER.bat
+→ OR run: npm start
+
+═══════════════════════════════════════════════════════════
+
+AFTER SERVER STARTS:
+───────────────────────────────────────────────────────────
+1. Wait for: "Server running on http://localhost:3000"
+2. Open browser: http://localhost:3000/app.html
+3. Login: admin / admin123
+
+═══════════════════════════════════════════════════════════
+
+TROUBLESHOOTING:
+───────────────────────────────────────────────────────────
+If server won't start:
+→ Run: FIX_AND_START.bat (cleans and reinstalls)
+
+If "npm not found":
+→ Node.js not in PATH
+→ Use: AUTO_START.bat (handles this automatically)
+
+If "Cannot find module":
+→ Dependencies incomplete
+→ Run: FIX_AND_START.bat
+
+═══════════════════════════════════════════════════════════
+

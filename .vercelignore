@@ -1,0 +1,50 @@
+# Development files
+*.bat
+*.md
+*.txt
+*.zip
+
+# Database files (SQLite won't work on Vercel anyway)
+*.db
+*.db-shm
+*.db-wal
+
+# Backups
+backups/
+backup.js
+
+# Documentation
+*.md
+DEPLOYMENT_GUIDE.md
+GETTING_STARTED.md
+QUICK_START.md
+TROUBLESHOOTING.md
+README*.md
+*_GUIDE.md
+*_SETUP.md
+*_INSTRUCTIONS.txt
+
+# Local development files
+.env.local
+.env.development
+AUTO_START.bat
+START*.bat
+FIX*.bat
+SETUP*.bat
+
+# Test files
+test*.html
+hello.html
+simple-test.html
+
+# Old deployment configs
+netlify.toml
+railway.json
+netlify-deploy.zip
+
+# Node modules (will be installed by Vercel)
+# node_modules/
+
+# Logs
+*.log
+npm-debug.log*

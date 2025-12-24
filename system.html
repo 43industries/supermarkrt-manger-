@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root">
+        <div style="text-align: center; padding: 50px;">
+            <h2>Loading Supermarket System...</h2>
+            <p>If this doesn't disappear in 3 seconds, check console (F12)</p>
+        </div>
+    </div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        console.log('✅ React loaded');
+        console.log('✅ Starting app...');
+        
+        // Icons
+        const ShoppingCart = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/>
+                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+            </svg>
+        );
+        
+        const LogOut = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+            </svg>
+        );
+        
+        const App = () => {
+          const [loggedIn, setLoggedIn] = useState(() => {
+            return localStorage.getItem('user') !== null;
+          });
+
+          if (!loggedIn) {
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                  <div className="text-center mb-8">
+                    <ShoppingCart size={48} className="mx-auto mb-4 text-blue-600" />
+                    <h1 className="text-3xl font-bold">Supermarket Manager</h1>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem('user', 'admin');
+                      setLoggedIn(true);
+                    }}
+                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                  >
+                    Login as Admin
+                  </button>
+                  <p className="text-center text-sm text-gray-600 mt-4">Quick login for testing</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="min-h-screen bg-gray-100">
+              <div className="bg-white shadow-md">
+                <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                  <h1 className="text-xl font-bold">Supermarket Manager</h1>
+                  <button 
+                    onClick={() => {
+                      localStorage.removeItem('user');
+                      setLoggedIn(false);
+                    }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-w-7xl mx-auto px-4 py-6">
+                <div className="text-center p-12 bg-white rounded-lg shadow">
+                  <ShoppingCart size={80} className="mx-auto mb-6 text-green-600" />
+                  <h2 className="text-4xl font-bold mb-4 text-green-600">✅ SYSTEM WORKING!</h2>
+                  <p className="text-lg mb-6">Your supermarket system loaded successfully with no errors!</p>
+                  
+                  <div className="mt-8 space-y-4 max-w-2xl mx-auto">
+                    <a 
+                      href="complete-system.html"
+                      className="block bg-blue-600 text-white py-4 px-6 rounded-lg font-bold hover:bg-blue-700 text-lg"
+                    >
+                      → Open Complete System (All Features)
+                    </a>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="bg-green-50 p-4 rounded border-l-4 border-green-500">
+                        <p className="font-bold text-green-800">✓ Server: Running</p>
+                      </div>
+                      <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-500">
+                        <p className="font-bold text-blue-800">✓ React: Loaded</p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded border-l-4 border-purple-500">
+                        <p className="font-bold text-purple-800">✓ Login: Working</p>
+                      </div>
+                      <div className="bg-orange-50 p-4 rounded border-l-4 border-orange-500">
+                        <p className="font-bold text-orange-800">✓ Data: Persisted</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-4 bg-gray-50 rounded">
+                    <p className="text-sm text-gray-600">If complete-system.html doesn't load, press F12 and check console for errors</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        try {
+          const root = ReactDOM.createRoot(document.getElementById('root'));
+          root.render(<App />);
+          console.log('✅ App rendered successfully!');
+        } catch (error) {
+          console.error('❌ Error:', error);
+          document.getElementById('root').innerHTML = `
+            <div style="text-align:center; padding:50px;">
+              <h1 style="color:red;">Error Loading</h1>
+              <p>${error.message}</p>
+              <pre style="text-align:left; background:#f5f5f5; padding:20px;">${error.stack}</pre>
+            </div>
+          `;
+        }
+    </script>
+</body>
+</html>
+

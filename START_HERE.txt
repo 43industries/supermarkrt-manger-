@@ -1,0 +1,50 @@
+╔══════════════════════════════════════════════════════════╗
+║         HOW TO START THE SUPERMARKET SYSTEM             ║
+╚══════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────┐
+│  STEP 1: INSTALL NODE.JS (First Time Only)             │
+└─────────────────────────────────────────────────────────┘
+
+  → Go to: https://nodejs.org/
+  → Download and install the LTS version
+  → Restart your computer
+
+┌─────────────────────────────────────────────────────────┐
+│  STEP 2: INSTALL DEPENDENCIES (First Time Only)        │
+└─────────────────────────────────────────────────────────┘
+
+  → Open Command Prompt in this folder
+  → Type: npm install
+  → Wait for it to finish
+
+┌─────────────────────────────────────────────────────────┐
+│  STEP 3: START THE SERVER                              │
+└─────────────────────────────────────────────────────────┘
+
+  → Double-click: START_SERVER.bat
+  → OR type: npm start
+
+  Wait for this message:
+  ✅ "Server running on http://localhost:3000"
+
+┌─────────────────────────────────────────────────────────┐
+│  STEP 4: OPEN IN BROWSER                              │
+└─────────────────────────────────────────────────────────┘
+
+  → Open your web browser
+  → Go to: http://localhost:3000/app.html
+
+┌─────────────────────────────────────────────────────────┐
+│  STEP 5: LOGIN                                          │
+└─────────────────────────────────────────────────────────┘
+
+  Username: admin
+  Password: admin123
+
+╔══════════════════════════════════════════════════════════╗
+║                    THAT'S IT! ✅                         ║
+╚══════════════════════════════════════════════════════════╝
+
+For detailed instructions, see: HOW_TO_START.md
+

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket System - Start Here</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-500 to-purple-600 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🛒 Supermarket Manager</h1>
+            <p class="text-gray-600">Choose how to start your system</p>
+        </div>
+
+        <div class="space-y-4">
+            <!-- Main Complete System -->
+            <a href="complete-system.html" class="block">
+                <div class="bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-500 rounded-lg p-6 hover:shadow-lg transition cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-green-800">✅ Complete System</h2>
+                            <p class="text-sm text-green-700 mt-1">Full POS with all features</p>
+                            <ul class="text-xs text-green-600 mt-2 space-y-1">
+                                <li>✓ Dashboard, POS, Stock Management</li>
+                                <li>✓ Products, Customers, Reports</li>
+                                <li>✓ Receipt Printing, M-Pesa</li>
+                                <li>✓ Auto-login, Data Persistence</li>
+                            </ul>
+                        </div>
+                        <div class="text-6xl">→</div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Simple Test -->
+            <a href="simple-test.html" class="block">
+                <div class="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 hover:shadow-lg transition cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold text-blue-800">🧪 Simple Test</h2>
+                            <p class="text-sm text-blue-700 mt-1">Test if React is working</p>
+                        </div>
+                        <div class="text-4xl">→</div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Hello Test -->
+            <a href="hello.html" class="block">
+                <div class="bg-gray-50 border-2 border-gray-300 rounded-lg p-6 hover:shadow-lg transition cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800">👋 Server Test</h2>
+                            <p class="text-sm text-gray-700 mt-1">Test if server is running</p>
+                        </div>
+                        <div class="text-4xl">→</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="mt-8 p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+            <h3 class="font-bold text-yellow-800 mb-2">🆘 Troubleshooting</h3>
+            <div class="text-sm text-yellow-700 space-y-2">
+                <p><strong>If page won't load:</strong></p>
+                <ol class="list-decimal list-inside space-y-1 ml-2">
+                    <li>Try: <a href="hello.html" class="underline">hello.html</a> first</li>
+                    <li>Make sure URL is: <code class="bg-yellow-100 px-1">http://localhost:8000/start.html</code></li>
+                    <li>Check browser console (F12)</li>
+                    <li>Try different browser (Chrome/Firefox)</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 class="font-semibold text-blue-800 mb-2">✅ Server Status</h3>
+            <p class="text-sm text-blue-700">If you can see this page, the server is working!</p>
+            <p class="text-xs text-blue-600 mt-2">Server: Python HTTP running on port 8000</p>
+        </div>
+
+        <div class="mt-4 text-center text-sm text-gray-600">
+            <p>Login Credentials: <strong>admin / admin123</strong> or <strong>cashier / cashier123</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+
