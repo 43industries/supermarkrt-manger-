@@ -15,6 +15,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Debug middleware to log incoming paths
+app.use((req, res, next) => {
+  console.log('Incoming request:', req.method, req.url, req.path);
+  next();
+});
+
 // M-Pesa Configuration from environment variables
 const MPESA_CONFIG = {
     consumerKey: process.env.MPESA_CONSUMER_KEY || 'YOUR_CONSUMER_KEY',
@@ -79,15 +85,31 @@ const getAccessToken = async () => {
 };
 
 // ============== API ROUTES ==============
+// Note: Vercel routes /api/* to this function, so paths include /api prefix
 
-// Health check
+// Health check - try both with and without /api prefix
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
         service: '43_Industries POS',
         mpesa: MPESA_CONFIG.environment,
         timestamp: new Date().toISOString(),
-        platform: 'Vercel'
+        platform: 'Vercel',
+        path: req.path,
+        url: req.url
+    });
+});
+
+// Also handle without /api prefix (in case Vercel strips it)
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        service: '43_Industries POS',
+        mpesa: MPESA_CONFIG.environment,
+        timestamp: new Date().toISOString(),
+        platform: 'Vercel',
+        path: req.path,
+        url: req.url
     });
 });
 
@@ -352,5 +374,10 @@ app.post('/api/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
 
 // Export the Express app wrapped as a serverless function
 // This is what Vercel expects - a handler function, not the Express app directly
-module.exports = serverless(app);
+// Configure serverless-http to handle the base path correctly
+const handler = serverless(app, {
+  binary: ['image/*', 'application/pdf']
+});
+
+module.exports = handler;
 
