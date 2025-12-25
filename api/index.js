@@ -79,10 +79,9 @@ const getAccessToken = async () => {
 };
 
 // ============== API ROUTES ==============
-// Note: Routes don't need /api prefix because Vercel already routes /api/* to this function
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
         service: '43_Industries POS',
@@ -93,7 +92,7 @@ app.get('/health', (req, res) => {
 });
 
 // Check M-Pesa configuration
-app.get('/mpesa/status', (req, res) => {
+app.get('/api/mpesa/status', (req, res) => {
     const isConfigured = MPESA_CONFIG.consumerKey !== 'YOUR_CONSUMER_KEY';
     res.json({
         configured: isConfigured,
@@ -106,7 +105,7 @@ app.get('/mpesa/status', (req, res) => {
 });
 
 // Initiate STK Push (Lipa Na M-Pesa Online)
-app.post('/mpesa/stkpush', async (req, res) => {
+app.post('/api/mpesa/stkpush', async (req, res) => {
     try {
         const { phone, amount, reference, description } = req.body;
         
@@ -221,7 +220,7 @@ app.post('/mpesa/stkpush', async (req, res) => {
 });
 
 // M-Pesa Callback URL (receives payment confirmation from Safaricom)
-app.post('/mpesa/callback', (req, res) => {
+app.post('/api/mpesa/callback', (req, res) => {
     console.log('\n📥 M-Pesa Callback Received:');
     console.log(JSON.stringify(req.body, null, 2));
 
@@ -261,7 +260,7 @@ app.post('/mpesa/callback', (req, res) => {
 });
 
 // Check transaction status
-app.get('/mpesa/status/:checkoutRequestId', async (req, res) => {
+app.get('/api/mpesa/status/:checkoutRequestId', async (req, res) => {
     const { checkoutRequestId } = req.params;
     
     // Check local cache first
@@ -328,7 +327,7 @@ app.get('/mpesa/status/:checkoutRequestId', async (req, res) => {
 });
 
 // Simulate payment completion (for demo/testing)
-app.post('/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
+app.post('/api/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
     const { checkoutRequestId } = req.params;
     
     if (pendingTransactions.has(checkoutRequestId)) {
