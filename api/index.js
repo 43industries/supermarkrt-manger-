@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const serverless = require('serverless-http');
 const axios = require('axios');
 const cors = require('cors');
 const path = require('path');
@@ -20,9 +21,9 @@ const MPESA_CONFIG = {
     consumerSecret: process.env.MPESA_CONSUMER_SECRET || 'YOUR_CONSUMER_SECRET',
     shortcode: process.env.MPESA_SHORTCODE || '174379', // Sandbox default
     passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Sandbox default
-    callbackUrl: process.env.MPESA_CALLBACK_URL || process.env.VERCEL_URL 
+    callbackUrl: process.env.MPESA_CALLBACK_URL || (process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}/api/mpesa/callback`
-        : 'https://your-domain.com/api/mpesa/callback',
+        : 'https://your-domain.com/api/mpesa/callback'),
     environment: process.env.MPESA_ENVIRONMENT || 'sandbox' // 'sandbox' or 'production'
 };
 
@@ -78,9 +79,10 @@ const getAccessToken = async () => {
 };
 
 // ============== API ROUTES ==============
+// Note: Routes don't need /api prefix because Vercel already routes /api/* to this function
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/health', (req, res) => {
     res.json({ 
         status: 'ok', 
         service: '43_Industries POS',
@@ -91,7 +93,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Check M-Pesa configuration
-app.get('/api/mpesa/status', (req, res) => {
+app.get('/mpesa/status', (req, res) => {
     const isConfigured = MPESA_CONFIG.consumerKey !== 'YOUR_CONSUMER_KEY';
     res.json({
         configured: isConfigured,
@@ -104,7 +106,7 @@ app.get('/api/mpesa/status', (req, res) => {
 });
 
 // Initiate STK Push (Lipa Na M-Pesa Online)
-app.post('/api/mpesa/stkpush', async (req, res) => {
+app.post('/mpesa/stkpush', async (req, res) => {
     try {
         const { phone, amount, reference, description } = req.body;
         
@@ -219,7 +221,7 @@ app.post('/api/mpesa/stkpush', async (req, res) => {
 });
 
 // M-Pesa Callback URL (receives payment confirmation from Safaricom)
-app.post('/api/mpesa/callback', (req, res) => {
+app.post('/mpesa/callback', (req, res) => {
     console.log('\n📥 M-Pesa Callback Received:');
     console.log(JSON.stringify(req.body, null, 2));
 
@@ -259,7 +261,7 @@ app.post('/api/mpesa/callback', (req, res) => {
 });
 
 // Check transaction status
-app.get('/api/mpesa/status/:checkoutRequestId', async (req, res) => {
+app.get('/mpesa/status/:checkoutRequestId', async (req, res) => {
     const { checkoutRequestId } = req.params;
     
     // Check local cache first
@@ -326,7 +328,7 @@ app.get('/api/mpesa/status/:checkoutRequestId', async (req, res) => {
 });
 
 // Simulate payment completion (for demo/testing)
-app.post('/api/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
+app.post('/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
     const { checkoutRequestId } = req.params;
     
     if (pendingTransactions.has(checkoutRequestId)) {
@@ -349,6 +351,7 @@ app.post('/api/mpesa/simulate-complete/:checkoutRequestId', (req, res) => {
     });
 });
 
-// Export the Express app as a serverless function
-module.exports = app;
+// Export the Express app wrapped as a serverless function
+// This is what Vercel expects - a handler function, not the Express app directly
+module.exports = serverless(app);
 
