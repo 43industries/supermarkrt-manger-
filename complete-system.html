@@ -6369,6 +6369,14 @@
                 return;
             }
             
+            // Check if Babel has processed the script (for JSX support)
+            // If Babel isn't available, we'll use createElement fallback
+            if (typeof Babel === 'undefined') {
+                console.warn('⚠️ Babel not loaded - JSX may not work. Will use createElement fallback.');
+            } else {
+                console.log('✅ Babel is available for JSX processing');
+            }
+            
             // Check for root element
             let rootElement = document.getElementById('root');
             if (!rootElement) {
@@ -6388,13 +6396,31 @@
                 console.log('✅ React libraries loaded, initializing application...');
                 console.log('✅ React version:', React.version);
                 console.log('✅ ReactDOM version:', ReactDOM.version);
+                console.log('✅ Babel available:', typeof Babel !== 'undefined');
+                
+                // Check if CompleteSystem is defined
+                if (typeof CompleteSystem === 'undefined') {
+                    throw new Error('CompleteSystem component is not defined. Babel may not have processed the JSX.');
+                }
+                
+                console.log('✅ CompleteSystem component found');
                 
                 // Mark as initialized
                 rootElement.setAttribute('data-initialized', 'true');
                 
-                // Create root and render
+                // Create root and render - try JSX first, fallback to createElement
                 const root = ReactDOM.createRoot(rootElement);
-                root.render(React.createElement(CompleteSystem));
+                
+                // Try rendering with JSX (Babel should transform this)
+                try {
+                    root.render(<CompleteSystem />);
+                    console.log('✅ Rendered with JSX syntax');
+                } catch (jsxError) {
+                    console.warn('⚠️ JSX rendering failed, trying createElement:', jsxError);
+                    // Fallback to createElement
+                    root.render(React.createElement(CompleteSystem));
+                    console.log('✅ Rendered with createElement');
+                }
                 
                 console.log('✅ Complete system loaded successfully!');
             } catch (error) {
