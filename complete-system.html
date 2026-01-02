@@ -6400,7 +6400,11 @@
                 
                 // Check if CompleteSystem is defined
                 if (typeof CompleteSystem === 'undefined') {
-                    throw new Error('CompleteSystem component is not defined. Babel may not have processed the JSX.');
+                    // Wait a bit more for Babel to process JSX
+                    console.warn('⚠️ CompleteSystem not defined yet, waiting for Babel to process JSX...');
+                    rootElement.removeAttribute('data-initialized');
+                    setTimeout(initApp, 500);
+                    return;
                 }
                 
                 console.log('✅ CompleteSystem component found');
@@ -6408,19 +6412,9 @@
                 // Mark as initialized
                 rootElement.setAttribute('data-initialized', 'true');
                 
-                // Create root and render - try JSX first, fallback to createElement
+                // Create root and render using createElement (Babel should have already transformed the component)
                 const root = ReactDOM.createRoot(rootElement);
-                
-                // Try rendering with JSX (Babel should transform this)
-                try {
-                    root.render(<CompleteSystem />);
-                    console.log('✅ Rendered with JSX syntax');
-                } catch (jsxError) {
-                    console.warn('⚠️ JSX rendering failed, trying createElement:', jsxError);
-                    // Fallback to createElement
-                    root.render(React.createElement(CompleteSystem));
-                    console.log('✅ Rendered with createElement');
-                }
+                root.render(React.createElement(CompleteSystem));
                 
                 console.log('✅ Complete system loaded successfully!');
             } catch (error) {
