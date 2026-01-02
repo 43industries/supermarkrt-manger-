@@ -17,33 +17,53 @@
     <script src="/libs/qrcode.min.js" onerror="console.error('Failed to load QRCode from local file')"></script>
     <!-- Fallback to CDN if local files fail (only works online) -->
     <script>
+        // Diagnostic: Check library loading
+        console.log('🔍 Checking library availability...');
+        
         // Wait a bit then check if libraries loaded
         setTimeout(function() {
+            console.log('📚 Library status check:');
+            console.log('  React:', typeof React !== 'undefined' ? '✅ Loaded' : '❌ Missing');
+            console.log('  ReactDOM:', typeof ReactDOM !== 'undefined' ? '✅ Loaded' : '❌ Missing');
+            console.log('  Babel:', typeof Babel !== 'undefined' ? '✅ Loaded' : '❌ Missing');
+            
             // Check if React loaded, if not try CDN
             if (typeof React === 'undefined') {
-                console.log('Local React failed, trying CDN...');
+                console.warn('⚠️ Local React failed, trying CDN...');
                 const r = document.createElement('script');
                 r.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
                 r.crossOrigin = 'anonymous';
-                r.onload = function() { console.log('React loaded from CDN'); };
-                r.onerror = function() { console.error('Failed to load React from CDN'); };
+                r.onload = function() { 
+                    console.log('✅ React loaded from CDN');
+                    // Retry initialization after CDN load
+                    if (typeof window.initApp === 'function') {
+                        setTimeout(window.initApp, 100);
+                    }
+                };
+                r.onerror = function() { console.error('❌ Failed to load React from CDN'); };
                 document.head.appendChild(r);
             }
             if (typeof ReactDOM === 'undefined') {
-                console.log('Local ReactDOM failed, trying CDN...');
+                console.warn('⚠️ Local ReactDOM failed, trying CDN...');
                 const rd = document.createElement('script');
                 rd.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
                 rd.crossOrigin = 'anonymous';
-                rd.onload = function() { console.log('ReactDOM loaded from CDN'); };
-                rd.onerror = function() { console.error('Failed to load ReactDOM from CDN'); };
+                rd.onload = function() { 
+                    console.log('✅ ReactDOM loaded from CDN');
+                    // Retry initialization after CDN load
+                    if (typeof window.initApp === 'function') {
+                        setTimeout(window.initApp, 100);
+                    }
+                };
+                rd.onerror = function() { console.error('❌ Failed to load ReactDOM from CDN'); };
                 document.head.appendChild(rd);
             }
             if (typeof Babel === 'undefined') {
-                console.log('Local Babel failed, trying CDN...');
+                console.warn('⚠️ Local Babel failed, trying CDN...');
                 const b = document.createElement('script');
                 b.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
-                b.onload = function() { console.log('Babel loaded from CDN'); };
-                b.onerror = function() { console.error('Failed to load Babel from CDN'); };
+                b.onload = function() { console.log('✅ Babel loaded from CDN'); };
+                b.onerror = function() { console.error('❌ Failed to load Babel from CDN'); };
                 document.head.appendChild(b);
             }
         }, 500);
@@ -6334,47 +6354,87 @@
         };
 
         // Wait for React and ReactDOM to be available
-        function initApp() {
-            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-                console.log('⏳ Waiting for React libraries to load...');
+        // Make initApp available globally for CDN fallback
+        window.initApp = function initApp() {
+            // Check for required libraries
+            if (typeof React === 'undefined') {
+                console.log('⏳ Waiting for React to load...');
                 setTimeout(initApp, 200);
                 return;
             }
             
-            const rootElement = document.getElementById('root');
+            if (typeof ReactDOM === 'undefined') {
+                console.log('⏳ Waiting for ReactDOM to load...');
+                setTimeout(initApp, 200);
+                return;
+            }
+            
+            // Check for root element
+            let rootElement = document.getElementById('root');
             if (!rootElement) {
                 console.error('❌ Root element not found! Creating one...');
-                const rootDiv = document.createElement('div');
-                rootDiv.id = 'root';
-                document.body.appendChild(rootDiv);
-                initApp();
+                rootElement = document.createElement('div');
+                rootElement.id = 'root';
+                document.body.appendChild(rootElement);
+            }
+            
+            // Safety check - don't initialize more than once
+            if (rootElement.hasAttribute('data-initialized')) {
+                console.log('✅ App already initialized');
                 return;
             }
             
             try {
                 console.log('✅ React libraries loaded, initializing application...');
+                console.log('✅ React version:', React.version);
+                console.log('✅ ReactDOM version:', ReactDOM.version);
+                
+                // Mark as initialized
+                rootElement.setAttribute('data-initialized', 'true');
+                
+                // Create root and render
                 const root = ReactDOM.createRoot(rootElement);
                 root.render(React.createElement(CompleteSystem));
+                
                 console.log('✅ Complete system loaded successfully!');
             } catch (error) {
                 console.error('❌ Error rendering application:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+                
                 const errorHtml = `
-                    <div style="padding: 50px; text-align: center; font-family: Arial;">
-                        <h1 style="color: red; margin-bottom: 20px;">Error Loading Application</h1>
-                        <p style="color: #666; margin-bottom: 10px;">There was an error loading the application:</p>
-                        <pre style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; max-width: 800px; margin: 0 auto;">
-                            ${error.toString()}
-                            ${error.stack || ''}
-                        </pre>
-                        <p style="margin-top: 20px; color: #666; font-size: 12px;">
-                            Check the browser console (F12) for more details.
-                        </p>
-                        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                            Reload Page
-                        </button>
+                    <div style="padding: 50px; text-align: center; font-family: Arial; max-width: 900px; margin: 0 auto;">
+                        <h1 style="color: red; margin-bottom: 20px; font-size: 24px;">❌ Error Loading Application</h1>
+                        <p style="color: #666; margin-bottom: 10px; font-size: 16px;">There was an error loading the application:</p>
+                        <div style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; border-radius: 5px; margin: 20px 0;">
+                            <p style="color: #d32f2f; font-weight: bold; margin-bottom: 10px;">${error.name}: ${error.message}</p>
+                            <pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; color: #666;">
+${error.stack || 'No stack trace available'}
+                            </pre>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                                <strong>Common fixes:</strong><br>
+                                1. Check browser console (F12) for more details<br>
+                                2. Clear browser cache and reload<br>
+                                3. Try a different browser<br>
+                                4. Check that all libraries loaded correctly
+                            </p>
+                            <button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;">
+                                🔄 Reload Page
+                            </button>
+                        </div>
                     </div>
                 `;
-                rootElement.innerHTML = errorHtml;
+                
+                if (rootElement) {
+                    rootElement.innerHTML = errorHtml;
+                } else {
+                    document.body.innerHTML = errorHtml;
+                }
             }
         }
         
@@ -6382,11 +6442,22 @@
         // Babel processes type="text/babel" scripts automatically, but we still need to wait for React
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(initApp, 1000);
+                console.log('📄 DOM loaded, starting app initialization...');
+                setTimeout(initApp, 500);
             });
         } else {
-            setTimeout(initApp, 1000);
+            console.log('📄 DOM already ready, starting app initialization...');
+            setTimeout(initApp, 500);
         }
+        
+        // Fallback: Try again after 3 seconds if still not initialized
+        setTimeout(function() {
+            const rootElement = document.getElementById('root');
+            if (rootElement && !rootElement.hasAttribute('data-initialized')) {
+                console.warn('⚠️ App not initialized after 3 seconds, retrying...');
+                initApp();
+            }
+        }, 3000);
     </script>
 </body>
 </html>
