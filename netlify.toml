@@ -5,14 +5,14 @@
   # No build command needed - we're deploying static HTML files
   publish = "."
 
-# Redirect root to main application
+# Set complete-system.html as the index page
 [[redirects]]
   from = "/"
   to = "/complete-system.html"
   status = 200
+  force = true
 
-# SPA routing - redirect non-file requests to main HTML
-# Netlify automatically serves existing files, so this only redirects non-existent paths
+# Redirect all non-file requests to complete-system.html
 [[redirects]]
   from = "/*"
   to = "/complete-system.html"
