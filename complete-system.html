@@ -17,8 +17,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- QRCode library via CDN (avoids module syntax issues with local file) -->
     <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js" onerror="console.error('Failed to load QRCode from CDN')"></script>
-    <!-- Babel last - processes only type="text/babel" scripts -->
-    <script src="/libs/babel.min.js" onerror="console.error('Failed to load Babel from local file')"></script>
+    <!-- Babel from CDN (avoids module syntax issues) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js" onerror="console.error('Failed to load Babel from CDN')"></script>
     <!-- Fallback to CDN if local files fail (only works online) -->
     <script>
         // Diagnostic: Check library loading
