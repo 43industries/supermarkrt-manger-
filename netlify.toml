@@ -11,8 +11,8 @@
   to = "/complete-system.html"
   status = 200
 
-# SPA routing - redirect all non-file requests to main HTML
-# This ensures the app works when users navigate directly to URLs
+# SPA routing - redirect non-file requests to main HTML
+# Netlify automatically serves existing files, so this only redirects non-existent paths
 [[redirects]]
   from = "/*"
   to = "/complete-system.html"

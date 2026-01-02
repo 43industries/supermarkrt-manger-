@@ -9,12 +9,12 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- Load scripts: Use standard script tags - browser will handle loading -->
-    <script src="./libs/react.min.js" onerror="console.error('Failed to load React from local file')"></script>
-    <script src="./libs/react-dom.min.js" onerror="console.error('Failed to load ReactDOM from local file')"></script>
-    <script src="./libs/babel.min.js" onerror="console.error('Failed to load Babel from local file')"></script>
-    <script src="./libs/tailwind.js" onerror="console.error('Failed to load Tailwind from local file')"></script>
-    <script src="./libs/qrcode.min.js" onerror="console.error('Failed to load QRCode from local file')"></script>
+    <!-- Load scripts: Use absolute paths for better Netlify compatibility -->
+    <script src="/libs/react.min.js" onerror="console.error('Failed to load React from local file')"></script>
+    <script src="/libs/react-dom.min.js" onerror="console.error('Failed to load ReactDOM from local file')"></script>
+    <script src="/libs/babel.min.js" onerror="console.error('Failed to load Babel from local file')"></script>
+    <script src="/libs/tailwind.js" onerror="console.error('Failed to load Tailwind from local file')"></script>
+    <script src="/libs/qrcode.min.js" onerror="console.error('Failed to load QRCode from local file')"></script>
     <!-- Fallback to CDN if local files fail (only works online) -->
     <script>
         // Wait a bit then check if libraries loaded
