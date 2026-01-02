@@ -13,7 +13,8 @@
     <script src="/libs/react.min.js" onerror="console.error('Failed to load React from local file')"></script>
     <script src="/libs/react-dom.min.js" onerror="console.error('Failed to load ReactDOM from local file')"></script>
     <script src="/libs/babel.min.js" onerror="console.error('Failed to load Babel from local file')"></script>
-    <script src="/libs/tailwind.js" onerror="console.error('Failed to load Tailwind from local file')"></script>
+    <!-- Tailwind CSS via CDN (required - local file has module syntax issues) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="/libs/qrcode.min.js" onerror="console.error('Failed to load QRCode from local file')"></script>
     <!-- Fallback to CDN if local files fail (only works online) -->
     <script>
