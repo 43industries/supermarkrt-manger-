@@ -5,17 +5,19 @@
   # No build command needed - we're deploying static HTML files
   publish = "."
 
-# Redirect root to offline application (works offline)
+# Redirect root to main application
 [[redirects]]
   from = "/"
-  to = "/complete-system-offline.html"
+  to = "/complete-system.html"
   status = 200
 
-# Ensure all files are served correctly
+# SPA routing - redirect all non-file requests to main HTML
+# This ensures the app works when users navigate directly to URLs
 [[redirects]]
   from = "/*"
-  to = "/:splat"
+  to = "/complete-system.html"
   status = 200
+  force = false
 
 # Headers for better caching (optional)
 [[headers]]

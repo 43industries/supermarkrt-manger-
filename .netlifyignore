@@ -1,80 +1,71 @@
-# Netlify Ignore File
-# Exclude unnecessary files from deployment
+# Files to exclude from Netlify deployment
 
-# Node.js files (not needed for static deployment)
+# Node modules
 node_modules/
 package-lock.json
-package.json
-server.js
-database.js
-backup.js
-*.db
-*.db-shm
-*.db-wal
-
-# Development files
-*.bat
-*.md
-*.txt
-*.csv
-*.db
-*.json
-!package.json
-!netlify.toml
-!vercel.json
-
-# Backup files
-backups/
-*.backup
-*-backup.html
-
-# Documentation
-README.md
-DEPLOYMENT_GUIDE.md
-*.md
-!README.md
-
-# Old/unused HTML files (keep only complete-system.html)
-app.html
-app-complete.html
-app.js
-index.html
-hello.html
-simple-test.html
-test.html
-test-app.html
-pos-system.html
-pos-fast.html
-fast-pos.html
-offline-system.html
-offline-loader.js
-standalone.html
-start.html
-system.html
-supermarket-app.html
-supermarket-full.html
-complete-system-backup.html
-supemarket
-
-# JSX files (not used in static deployment)
-*.jsx
-
-# Environment files
-.env
-.env.local
-.env.example
-env-config.txt
-
-# Keep PWA files
-!manifest.json
-!sw.js
-!complete-system-offline.html
 
 # Database files
 *.db
 *.db-shm
 *.db-wal
 
+# Backup files
+backups/
+*.backup
+*.bak
+
+# Documentation files (optional - remove if you want them deployed)
+*.md
+!README.md
+
+# Batch files (Windows only)
+*.bat
+
+# Development files
+server.js
+database.js
+LAN_SERVER.js
+offline-loader.js
+backup.js
+download-offline-resources.js
+
+# Vercel config (not needed for Netlify)
+vercel.json
+railway.json
+
+# Test files
+test*.html
+hello.html
+simple-test.html
+start.html
+
+# Old/alternative versions
+complete-system-backup.html
+complete-system-offline.html
+app.html
+app-complete.html
+fast-pos.html
+pos-fast.html
+pos-system.html
+offline-system.html
+standalone.html
+supermarket-app.html
+supermarket-full.html
+system.html
+supemarket
+
+# Environment files
+.env
+.env.local
+env-config.txt
+
 # Logs
 *.log
-npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
