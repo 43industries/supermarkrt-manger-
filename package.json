@@ -3,6 +3,10 @@
   "version": "2.0.0",
   "description": "43_Industries POS System with M-Pesa Integration",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
