@@ -43,11 +43,21 @@
             });
         }
 
+        // Helper function to get correct script path
+        function getScriptPath(path) {
+            // Try relative path first (for file:// and local server)
+            if (window.location.protocol === 'file:' || !path.startsWith('http')) {
+                return './libs/' + path.split('/').pop();
+            }
+            // For http/https, use absolute path
+            return path;
+        }
+
         // Load all required libraries
         Promise.all([
-            loadScript('/libs/react.min.js', 'https://unpkg.com/react@18/umd/react.production.min.js', 'React'),
-            loadScript('/libs/react-dom.min.js', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', 'ReactDOM'),
-            loadScript('/libs/babel.min.js', 'https://unpkg.com/@babel/standalone/babel.min.js', 'Babel')
+            loadScript(getScriptPath('/libs/react.min.js'), 'https://unpkg.com/react@18/umd/react.production.min.js', 'React'),
+            loadScript(getScriptPath('/libs/react-dom.min.js'), 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', 'ReactDOM'),
+            loadScript(getScriptPath('/libs/babel.min.js'), 'https://unpkg.com/@babel/standalone/babel.min.js', 'Babel')
         ]).then(() => {
             console.log('✅ All core libraries loaded successfully');
             // Mark that libraries are ready
@@ -79,8 +89,27 @@
         document.head.appendChild(relativeScripts);
     </script>
     <!-- Load non-critical scripts -->
-    <script src="/libs/tailwind.js" onerror="console.warn('Tailwind failed to load')"></script>
-    <script src="/libs/qrcode.min.js" onerror="console.warn('QRCode failed to load')"></script>
+    <script>
+        // Helper to load scripts with path fallback
+        function loadScriptSafe(path, name) {
+            const script = document.createElement('script');
+            // Try absolute path first
+            script.src = path;
+            script.onerror = function() {
+                // Fallback to relative path
+                const relPath = './libs/' + path.split('/').pop();
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = relPath;
+                fallbackScript.onerror = function() {
+                    console.warn(name + ' failed to load from both absolute and relative paths');
+                };
+                document.head.appendChild(fallbackScript);
+            };
+            document.head.appendChild(script);
+        }
+        loadScriptSafe('/libs/tailwind.js', 'Tailwind');
+        loadScriptSafe('/libs/qrcode.min.js', 'QRCode');
+    </script>
     <!-- Firebase SDKs (optional, for online features) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" onerror="console.warn('Firebase App failed to load - offline mode will work')"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" onerror="console.warn('Firebase Firestore failed to load - offline mode will work')"></script>
@@ -5765,9 +5794,19 @@
                     return;
                 }
 
-                const root = ReactDOM.createRoot(rootElement);
-                root.render(React.createElement(CompleteSystem));
-                console.log('✅ Complete system loaded successfully!');
+                // Use ReactDOM.createRoot if available (React 18+), otherwise fallback to render (React 17-)
+                if (typeof ReactDOM.createRoot === 'function') {
+                    // React 18+
+                    const root = ReactDOM.createRoot(rootElement);
+                    root.render(React.createElement(CompleteSystem));
+                    console.log('✅ Complete system loaded successfully (React 18)!');
+                } else if (typeof ReactDOM.render === 'function') {
+                    // React 17 or older
+                    ReactDOM.render(React.createElement(CompleteSystem), rootElement);
+                    console.log('✅ Complete system loaded successfully (React 17)!');
+                } else {
+                    throw new Error('ReactDOM.createRoot and ReactDOM.render are not available. React version might be incompatible.');
+                }
                 
                 // Clear any loading messages
                 window.librariesReady = true;
