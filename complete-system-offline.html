@@ -931,24 +931,81 @@
 
           // Store-specific users - Each store can have their own passwords
           const defaultUsers = [
-            { id: 1, username: 'admin', password: 'admin123', role: 'Admin', name: 'Store Manager' },
-            { id: 2, username: 'cashier', password: 'cashier123', role: 'Cashier', name: 'Sales Assistant' }
+            { id: 1, username: 'admin', password: 'Emma@123', pin: null, role: 'Admin', name: 'Store Manager', active: 1, created_at: new Date().toISOString(), last_login: null },
+            { id: 2, username: 'samuel', password: 'samuel123', pin: null, role: 'Cashier', name: 'Samuel', active: 1, created_at: new Date().toISOString(), last_login: null },
+            { id: 3, username: 'michael', password: 'michael123', pin: null, role: 'Cashier', name: 'Michael', active: 1, created_at: new Date().toISOString(), last_login: null }
           ];
 
           const [users, setUsers] = useState(() => {
             const saved = localStorage.getItem('storeUsers');
             if (saved) {
-              return JSON.parse(saved);
+              const parsed = JSON.parse(saved);
+              // Ensure all users have required fields
+              return parsed.map(u => ({
+                ...u,
+                active: u.active !== undefined ? u.active : 1,
+                created_at: u.created_at || new Date().toISOString(),
+                last_login: u.last_login || null
+              }));
             }
             // Save default users on first load
             localStorage.setItem('storeUsers', JSON.stringify(defaultUsers));
             return defaultUsers;
           });
 
+          // Cashier monitoring state
+          const [selectedCashier, setSelectedCashier] = useState(null);
+          const [cashierStats, setCashierStats] = useState(null);
+          const [cashierActivities, setCashierActivities] = useState([]);
+          const [showCashierMonitoring, setShowCashierMonitoring] = useState(false);
+
           // Save users whenever they change
           useEffect(() => {
             localStorage.setItem('storeUsers', JSON.stringify(users));
           }, [users]);
+
+          // Activity logging helper (localStorage-based)
+          const logActivity = (action, entityType, entityId, description) => {
+            const activityLogs = JSON.parse(localStorage.getItem('activity_logs') || '[]');
+            const newLog = {
+              id: activityLogs.length + 1,
+              user_id: currentUser?.id || null,
+              username: currentUser?.name || 'System',
+              action: action,
+              entity_type: entityType,
+              entity_id: entityId,
+              description: description,
+              created_at: new Date().toISOString()
+            };
+            activityLogs.unshift(newLog);
+            // Keep only last 1000 logs
+            if (activityLogs.length > 1000) {
+              activityLogs.splice(1000);
+            }
+            localStorage.setItem('activity_logs', JSON.stringify(activityLogs));
+          };
+
+          // Admin notification helper (localStorage-based)
+          const createAdminNotification = (type, title, message, actionType = null, actionId = null, priority = 'normal') => {
+            const notifications = JSON.parse(localStorage.getItem('admin_notifications') || '[]');
+            const newNotification = {
+              id: notifications.length + 1,
+              type: type,
+              title: title,
+              message: message,
+              action_type: actionType,
+              action_id: actionId,
+              priority: priority,
+              read: 0,
+              created_at: new Date().toISOString()
+            };
+            notifications.unshift(newNotification);
+            // Keep only last 500 notifications
+            if (notifications.length > 500) {
+              notifications.splice(500);
+            }
+            localStorage.setItem('admin_notifications', JSON.stringify(notifications));
+          };
 
           const handleLogin = (e) => {
             e.preventDefault();
@@ -963,15 +1020,26 @@
                 localStorage.setItem('logged_in_user', JSON.stringify(user));
               }
               
+              // Log activity
+              logActivity('LOGIN', 'user', user.id, `User ${user.name} logged in`);
+              
               console.log('Login successful:', user.name);
+              
+              // Auto-redirect cashiers to POS
+              if (user.role === 'Cashier') {
+                setCurrentView('pos');
+              }
             } else {
               console.log('Login failed. Available users:', users);
-              const userList = users.map(u => `${u.role}: ${u.username} / [password hidden]`).join('\n');
-              alert(`Invalid credentials!\n\nYou entered:\nUsername: "${loginForm.username}"\nPassword: "${loginForm.password}"\n\nPlease check your credentials or contact your store administrator.`);
+              logActivity('LOGIN_FAILED', 'user', null, `Failed login attempt for username: ${loginForm.username}`);
+              alert(`Invalid credentials!\n\nUsername: "${loginForm.username}"\n\nPlease check your credentials.\n\nDefault accounts:\nAdmin: admin / Emma@123\nSamuel: samuel / samuel123\nMichael: michael / michael123`);
             }
           };
 
           const handleLogout = () => {
+            if (currentUser) {
+              logActivity('LOGOUT', 'user', currentUser.id, `User ${currentUser.name} logged out`);
+            }
             setIsLoggedIn(false);
             setCurrentUser(null);
             setCart([]);
@@ -1049,9 +1117,16 @@
             
             setSales([newSale, ...sales]);
             
+            // Log sale activity
+            logActivity('SALE_COMPLETED', 'sale', newSale.id, `Sale #${newSale.id} completed by ${currentUser.name}. Total: KES ${total}, Payment: M-Pesa`);
+            
             const updatedProducts = products.map(product => {
               const cartItem = cart.find(item => item.id === product.id);
-              return cartItem ? { ...product, stock: product.stock - cartItem.quantity } : product;
+              if (cartItem) {
+                logActivity('STOCK_REDUCED', 'product', product.id, `Stock reduced for ${product.name}: -${cartItem.quantity} units (sale #${newSale.id})`);
+                return { ...product, stock: product.stock - cartItem.quantity };
+              }
+              return product;
             });
             setProducts(updatedProducts);
             
@@ -1490,14 +1565,37 @@
             }
           };
 
-          // Void/Refund a completed sale
+          // Void/Refund a completed sale (with PIN protection)
           const voidSale = (saleId) => {
             const sale = sales.find(s => s.id === saleId);
             if (!sale) return;
             
-            if (!window.confirm(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nThis will:\n• Remove the sale from records\n• Restore stock for all items\n• Cannot be undone!`)) {
+            // Ask for PIN
+            const pin = prompt(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nEnter your PIN to continue:\n\n(This requires PIN verification)`);
+            if (!pin) {
+              alert('Void cancelled. PIN is required.');
               return;
             }
+            
+            // Verify PIN (use password as PIN if PIN not set)
+            const user = users.find(u => u.id === currentUser.id);
+            if (!user) {
+              alert('❌ User not found. Cannot verify PIN.');
+              return;
+            }
+            
+            const expectedPin = user.pin || user.password;
+            if (expectedPin !== pin) {
+              logActivity('PIN_FAILED', 'sale', saleId, `PIN verification failed for void sale #${saleId} by ${currentUser.name}`);
+              createAdminNotification('security', 'Failed PIN Verification', `${currentUser.name} attempted to void sale #${saleId} with incorrect PIN`, 'void_sale', saleId, 'high');
+              alert('❌ Invalid PIN!\n\nPIN verification failed. Please check your PIN and try again.');
+              return;
+            }
+            
+            // PIN verified - proceed with void
+            logActivity('PIN_VERIFIED', 'sale', saleId, `PIN verified for void sale #${saleId} by ${currentUser.name}`);
+            logActivity('SALE_VOIDED', 'sale', saleId, `Sale #${saleId} voided by ${currentUser.name}. Total: KES ${sale.total}`);
+            createAdminNotification('sale', 'Sale Voided', `${currentUser.name} voided sale #${saleId} (KES ${sale.total})`, 'void_sale', saleId, 'high');
             
             // Restore stock
             if (sale.itemDetails) {
@@ -1509,12 +1607,17 @@
                 return product;
               });
               setProducts(updatedProducts);
+              
+              // Log stock restoration
+              sale.itemDetails.forEach(item => {
+                logActivity('STOCK_RESTORED', 'product', item.id, `Stock restored for ${item.name}: +${item.quantity} units (void sale #${saleId})`);
+              });
             }
             
-            // Mark sale as voided (or remove it)
-            setSales(sales.map(s => s.id === saleId ? { ...s, voided: true, voidedAt: new Date().toISOString() } : s));
+            // Mark sale as voided
+            setSales(sales.map(s => s.id === saleId ? { ...s, voided: true, voidedAt: new Date().toISOString(), voidedBy: currentUser.name } : s));
             
-            alert('✅ Sale #' + saleId + ' has been voided.\n\nStock has been restored.');
+            alert(`✅ Sale #${saleId} voided successfully!\n\nStock restored for all items.\n\nAdmin has been notified.`);
             setShowVoidSale(false);
           };
 
@@ -1586,9 +1689,10 @@
                   </div>
 
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600 font-semibold mb-2">Demo Credentials:</p>
-                    <p className="text-xs text-gray-600">Admin: admin / admin123</p>
-                    <p className="text-xs text-gray-600">Cashier: cashier / cashier123</p>
+                    <p className="text-xs text-gray-600 font-semibold mb-2">Default Credentials:</p>
+                    <p className="text-xs text-gray-600">Admin: admin / Emma@123</p>
+                    <p className="text-xs text-gray-600">Samuel (Cashier): samuel / samuel123</p>
+                    <p className="text-xs text-gray-600">Michael (Cashier): michael / michael123</p>
                   </div>
                 </div>
               </div>
@@ -5017,6 +5121,124 @@
                   </div>
                 )}
 
+                {currentView === 'cashier-monitoring' && selectedCashier && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-2xl font-bold">👤 Cashier Monitoring</h2>
+                        <p className="text-gray-600">Performance and activity tracking for {selectedCashier.name}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCurrentView('settings');
+                          setSelectedCashier(null);
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                      >
+                        ← Back to Settings
+                      </button>
+                    </div>
+
+                    {cashierStats ? (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+                          <p className="text-sm text-gray-600">Total Sales</p>
+                          <p className="text-3xl font-bold">{cashierStats.sales?.total || 0}</p>
+                        </div>
+                        <div className="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
+                          <p className="text-sm text-gray-600">Total Revenue</p>
+                          <p className="text-3xl font-bold">KES {(cashierStats.sales?.revenue || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
+                          <p className="text-sm text-gray-600">Total Profit</p>
+                          <p className="text-3xl font-bold">KES {(cashierStats.sales?.profit || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
+                          <p className="text-sm text-gray-600">Avg Transaction</p>
+                          <p className="text-3xl font-bold">KES {Math.round(cashierStats.sales?.avgTransaction || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">Loading cashier statistics...</p>
+                      </div>
+                    )}
+
+                    {cashierStats && (
+                      <div className="bg-white rounded-lg shadow p-6">
+                        <h3 className="text-xl font-bold mb-4">📊 Today's Performance</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Today's Sales</p>
+                            <p className="text-2xl font-bold">{cashierStats.sales?.today?.sales || 0}</p>
+                          </div>
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Today's Revenue</p>
+                            <p className="text-2xl font-bold">KES {(cashierStats.sales?.today?.revenue || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-xl font-bold mb-4">📝 Recent Activity</h3>
+                      {cashierActivities && cashierActivities.length > 0 ? (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {cashierActivities.map((activity, idx) => (
+                            <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <p className="font-semibold text-gray-800">{activity.action}</p>
+                                  <p className="text-sm text-gray-600">{activity.description}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-gray-500">{new Date(activity.created_at).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">No recent activity</p>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-xl font-bold mb-4">ℹ️ Account Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Username</p>
+                          <p className="font-semibold">{selectedCashier.username}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Full Name</p>
+                          <p className="font-semibold">{selectedCashier.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Role</p>
+                          <p className="font-semibold">{selectedCashier.role}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Account Created</p>
+                          <p className="font-semibold">{selectedCashier.created_at ? new Date(selectedCashier.created_at).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Last Login</p>
+                          <p className="font-semibold">{selectedCashier.last_login ? new Date(selectedCashier.last_login).toLocaleString() : 'Never'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Status</p>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            selectedCashier.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {selectedCashier.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {currentView === 'settings' && (
                   <div className="space-y-6">
                     <h2 className="text-2xl font-bold">⚙️ Store Settings</h2>
@@ -5123,11 +5345,66 @@
                       <div className="border-t-2 border-gray-300 pt-6 mt-6">
                         <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4 rounded">
                           <h3 className="text-xl font-bold mb-2 text-purple-800">🔐 User Accounts & Passwords</h3>
-                          <p className="text-sm text-purple-700">Change passwords for Admin and Cashier accounts. Each store can have different passwords.</p>
+                          <p className="text-sm text-purple-700">Manage Admin and Cashier accounts. Add new cashiers, change passwords, and monitor activity.</p>
                         </div>
                         
+                        {/* Add New Cashier Button (Admin Only) */}
+                        {currentUser && currentUser.role === 'Admin' && (
+                          <div className="mb-4">
+                            <button
+                              onClick={() => {
+                                const name = prompt('Enter cashier full name:');
+                                if (!name) return;
+                                
+                                const username = prompt('Enter username (for login):');
+                                if (!username) return;
+                                
+                                // Check if username already exists
+                                if (users.find(u => u.username === username)) {
+                                  alert('❌ Username already exists!');
+                                  return;
+                                }
+                                
+                                const password = prompt('Enter password:');
+                                if (!password || password.length < 4) {
+                                  alert('⚠️ Password must be at least 4 characters');
+                                  return;
+                                }
+                                
+                                const phone = prompt('Enter phone number (optional):') || '';
+                                const email = prompt('Enter email (optional):') || '';
+                                
+                                // Create new cashier
+                                const newId = Math.max(...users.map(u => u.id || 0), 0) + 1;
+                                const newCashier = {
+                                  id: newId,
+                                  username,
+                                  password,
+                                  name,
+                                  role: 'Cashier',
+                                  pin: null,
+                                  phone: phone || null,
+                                  email: email || null,
+                                  active: 1,
+                                  created_at: new Date().toISOString(),
+                                  last_login: null
+                                };
+                                
+                                const updatedUsers = [...users, newCashier];
+                                setUsers(updatedUsers);
+                                logActivity('USER_CREATED', 'user', newId, `New Cashier account created: ${name} (${username})`);
+                                alert(`✅ Cashier account created successfully!\n\nUsername: ${username}\nPassword: ${password}\n\nPlease share these credentials with the cashier.`);
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-2"
+                            >
+                              <Plus size={18} />
+                              Add New Cashier
+                            </button>
+                          </div>
+                        )}
+                        
                         <div className="space-y-4">
-                          {users.map((user, index) => (
+                          {users && users.length > 0 ? users.map((user, index) => (
                             <div key={user.id || index} className="bg-gray-50 border rounded-lg p-4">
                               <div className="flex justify-between items-start mb-3">
                                 <div>
@@ -5152,45 +5429,191 @@
                                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   />
                                 </div>
-                                <div className="flex items-end">
-                                  <button
-                                    onClick={() => {
-                                      const passwordInput = document.getElementById(`password-${user.id || index}`);
-                                      const newPassword = passwordInput.value.trim();
-                                      
-                                      if (!newPassword) {
-                                        alert('⚠️ Please enter a new password');
-                                        return;
-                                      }
-                                      
-                                      if (newPassword.length < 4) {
-                                        alert('⚠️ Password must be at least 4 characters long');
-                                        return;
-                                      }
-                                      
-                                      if (confirm(`Change password for ${user.name} (${user.role})?`)) {
-                                        const updatedUsers = users.map(u => 
-                                          u.id === user.id ? { ...u, password: newPassword } : u
-                                        );
-                                        setUsers(updatedUsers);
-                                        passwordInput.value = '';
-                                        alert(`✅ Password updated successfully for ${user.name}!\n\nNew password: ${newPassword}\n\nPlease write this down and keep it safe.`);
-                                      }
-                                    }}
-                                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm"
-                                  >
-                                    Change Password
-                                  </button>
+                                <div>
+                                  <label className="block text-xs font-medium mb-1 text-gray-700">PIN (Optional - for sensitive operations)</label>
+                                  <input
+                                    type="password"
+                                    placeholder="Enter PIN (or leave blank to use password)"
+                                    id={`pin-${user.id || index}`}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                  />
                                 </div>
                               </div>
+                              <div className="flex items-end mt-2">
+                                <button
+                                  onClick={() => {
+                                    const passwordInput = document.getElementById(`password-${user.id || index}`);
+                                    const pinInput = document.getElementById(`pin-${user.id || index}`);
+                                    const newPassword = passwordInput.value.trim();
+                                    const newPin = pinInput.value.trim();
+                                    
+                                    if (!newPassword && !newPin) {
+                                      alert('⚠️ Please enter a new password or PIN');
+                                      return;
+                                    }
+                                    
+                                    if (newPassword && newPassword.length < 4) {
+                                      alert('⚠️ Password must be at least 4 characters long');
+                                      return;
+                                    }
+                                    
+                                    if (confirm(`Update credentials for ${user.name} (${user.role})?`)) {
+                                      const updatedUsers = users.map(u => 
+                                        u.id === user.id ? { 
+                                          ...u, 
+                                          password: newPassword || u.password,
+                                          pin: newPin || u.pin
+                                        } : u
+                                      );
+                                      setUsers(updatedUsers);
+                                      passwordInput.value = '';
+                                      pinInput.value = '';
+                                      logActivity('USER_UPDATED', 'user', user.id, `Credentials updated for ${user.name}`);
+                                      alert(`✅ Credentials updated successfully for ${user.name}!\n\n${newPassword ? `New password: ${newPassword}\n` : ''}${newPin ? `New PIN: ${newPin}\n` : ''}\nPlease write this down and keep it safe.`);
+                                    }
+                                  }}
+                                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm"
+                                >
+                                  Update Credentials
+                                </button>
+                              </div>
+                              
+                              {/* View Monitoring Button (Admin Only) */}
+                              {currentUser && currentUser.role === 'Admin' && user.role === 'Cashier' && (
+                                <div className="mt-3 pt-3 border-t">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCashier(user);
+                                      setShowCashierMonitoring(true);
+                                      setCurrentView('cashier-monitoring');
+                                      
+                                      // Calculate cashier stats from localStorage
+                                      const cashierSales = sales.filter(s => s.cashier === user.name);
+                                      const totalSales = cashierSales.length;
+                                      const totalRevenue = cashierSales.reduce((sum, s) => sum + (s.total || 0), 0);
+                                      const totalProfit = cashierSales.reduce((sum, s) => sum + (s.profit || 0), 0);
+                                      const avgTransaction = totalSales > 0 ? totalRevenue / totalSales : 0;
+                                      
+                                      // Today's stats
+                                      const today = new Date().toISOString().split('T')[0];
+                                      const todaySales = cashierSales.filter(s => s.date === today);
+                                      const todayRevenue = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+                                      
+                                      // Get activity logs for this cashier
+                                      const activityLogs = JSON.parse(localStorage.getItem('activity_logs') || '[]');
+                                      const cashierActivities = activityLogs
+                                        .filter(log => log.user_id === user.id || log.username === `user_${user.id}`)
+                                        .slice(-20)
+                                        .reverse();
+                                      
+                                      setCashierStats({
+                                        user: user,
+                                        sales: {
+                                          total: totalSales,
+                                          revenue: totalRevenue,
+                                          profit: totalProfit,
+                                          avgTransaction: avgTransaction,
+                                          today: {
+                                            sales: todaySales.length,
+                                            revenue: todayRevenue
+                                          }
+                                        },
+                                        activity: {
+                                          total: cashierActivities.length,
+                                          recent: cashierActivities
+                                        }
+                                      });
+                                      setCashierActivities(cashierActivities);
+                                    }}
+                                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-sm flex items-center justify-center gap-2"
+                                  >
+                                    <TrendingUp size={16} />
+                                    View Monitoring & Performance
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>No users found.</p>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                           <p className="text-sm text-yellow-800">
                             <strong>⚠️ Important:</strong> Write down your passwords and keep them safe. If you forget your password, you'll need to clear browser data to reset.
                           </p>
+                        </div>
+                      </div>
+                      
+                      {/* ETIMS Configuration Section */}
+                      <div className="border-t-2 border-gray-300 pt-6 mt-6">
+                        <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4 rounded">
+                          <h3 className="text-xl font-bold mb-2 text-green-800">🧾 ETIMS (KRA Tax) Configuration</h3>
+                          <p className="text-sm text-green-700">Configure Electronic Tax Invoice Management System for automatic KRA submission.</p>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-blue-800 font-semibold mb-2">📋 ETIMS Status</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                              ETIMS integration allows automatic submission of invoices to KRA (Kenya Revenue Authority).
+                            </p>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                storeConfig.etimsEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {storeConfig.etimsEnabled ? '✅ Enabled' : '❌ Not Configured'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-3">
+                              To enable ETIMS, you need to:
+                            </p>
+                            <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside mb-3">
+                              <li>Register at <a href="https://etims.kra.go.ke" target="_blank" className="text-blue-600 underline">etims.kra.go.ke</a></li>
+                              <li>Get API credentials from KRA</li>
+                              <li>Enter credentials below</li>
+                            </ul>
+                            <button
+                              onClick={() => {
+                                const enabled = confirm('Enable ETIMS integration? (You must have KRA credentials first)');
+                                if (enabled) {
+                                  const consumerKey = prompt('Enter ETIMS Consumer Key:');
+                                  if (!consumerKey) return;
+                                  
+                                  const consumerSecret = prompt('Enter ETIMS Consumer Secret:');
+                                  if (!consumerSecret) return;
+                                  
+                                  setStoreConfig({
+                                    ...storeConfig,
+                                    etimsEnabled: true,
+                                    etimsConsumerKey: consumerKey,
+                                    etimsConsumerSecret: consumerSecret
+                                  });
+                                  alert('✅ ETIMS configuration saved!');
+                                }
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm"
+                            >
+                              {storeConfig.etimsEnabled ? 'Update ETIMS Credentials' : 'Configure ETIMS'}
+                            </button>
+                            {storeConfig.etimsEnabled && (
+                              <button
+                                onClick={() => {
+                                  if (confirm('Disable ETIMS integration?')) {
+                                    setStoreConfig({
+                                      ...storeConfig,
+                                      etimsEnabled: false
+                                    });
+                                  }
+                                }}
+                                className="ml-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm"
+                              >
+                                Disable ETIMS
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -5243,11 +5666,27 @@
 
         // Initialize app with proper error handling
         function initApp() {
-            // Check if required libraries are loaded
-            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Babel === 'undefined') {
-                console.log('⏳ Waiting for libraries to load...');
-                setTimeout(initApp, 200);
+            // Check if required libraries are loaded (Babel is optional)
+            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                console.log('⏳ Waiting for React libraries to load...');
+                // Retry after a delay, but only up to 150 times (30 seconds max)
+                if (!window.initRetries) window.initRetries = 0;
+                if (window.initRetries < 150) {
+                    window.initRetries++;
+                    setTimeout(initApp, 200);
+                } else {
+                    console.error('❌ React libraries failed to load after 30 seconds');
+                    const rootElement = document.getElementById('root');
+                    if (rootElement) {
+                        rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial;"><h1 style="color: red;">Error Loading Application</h1><p>React libraries failed to load. Please check that libs/react.min.js and libs/react-dom.min.js exist.</p><p>Or use a web server: node server.js</p></div>';
+                    }
+                }
                 return;
+            }
+            
+            // Check if Babel is loaded (optional but helpful)
+            if (typeof Babel === 'undefined') {
+                console.warn('⚠️ Babel not loaded, but continuing...');
             }
             
             const rootElement = document.getElementById('root');
@@ -5259,9 +5698,20 @@
             
             try {
                 console.log('✅ Libraries loaded, initializing application...');
-                const root = ReactDOM.createRoot(rootElement);
-                root.render(<CompleteSystem />);
-                console.log('✅ Complete system loaded successfully!');
+                
+                // Use ReactDOM.createRoot if available (React 18+), otherwise fallback to render (React 17-)
+                if (typeof ReactDOM.createRoot === 'function') {
+                    // React 18+
+                    const root = ReactDOM.createRoot(rootElement);
+                    root.render(React.createElement(CompleteSystem));
+                    console.log('✅ Complete system loaded successfully (React 18)!');
+                } else if (typeof ReactDOM.render === 'function') {
+                    // React 17 or older
+                    ReactDOM.render(React.createElement(CompleteSystem), rootElement);
+                    console.log('✅ Complete system loaded successfully (React 17)!');
+                } else {
+                    throw new Error('ReactDOM.createRoot and ReactDOM.render are not available. React version might be incompatible.');
+                }
             } catch (error) {
                 console.error('❌ Error rendering application:', error);
                 rootElement.innerHTML = `
@@ -5289,17 +5739,23 @@ ${error.stack || ''}
     </script>
     <!-- Service Worker Registration for Offline Functionality -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('✅ Service Worker registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('❌ Service Worker registration failed:', error);
-            });
-        });
-      }
+        // Skip Service Worker registration if using file:// protocol
+        if (window.location.protocol === 'file:') {
+            console.warn('⚠️ Service Worker disabled: file:// protocol not supported. Use a web server (http://localhost) for full functionality.');
+        } else {
+            // Only register Service Worker when using http:// or https://
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then((registration) => {
+                            console.log('✅ Service Worker registered:', registration.scope);
+                        })
+                        .catch((error) => {
+                            console.warn('⚠️ Service Worker registration failed (non-critical):', error.message);
+                        });
+                });
+            }
+        }
     </script>
 </body>
 </html>
