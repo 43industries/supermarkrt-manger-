@@ -6,7 +6,7 @@
     <title>Supermarket POS System - Offline</title>
     <meta name="description" content="Complete supermarket management and POS system - Works offline">
     <meta name="theme-color" content="#3b82f6">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json" onerror="console.warn('⚠️ Manifest.json not found (non-critical)')">
     <!-- Icon removed - using default if not available -->
     <!-- Prevent caching - forces browser to reload latest version -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -5857,17 +5857,23 @@ ${error.stack || ''}
     </script>
     <!-- Service Worker Registration for Offline Functionality -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('✅ Service Worker registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('❌ Service Worker registration failed:', error);
-            });
-        });
-      }
+        // Skip Service Worker registration if using file:// protocol
+        if (window.location.protocol === 'file:') {
+            console.warn('⚠️ Service Worker disabled: file:// protocol not supported. Use a web server (http://localhost) for full functionality.');
+        } else {
+            // Only register Service Worker when using http:// or https://
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then((registration) => {
+                            console.log('✅ Service Worker registered:', registration.scope);
+                        })
+                        .catch((error) => {
+                            console.warn('⚠️ Service Worker registration failed (non-critical):', error.message);
+                        });
+                });
+            }
+        }
     </script>
 </body>
 </html>
