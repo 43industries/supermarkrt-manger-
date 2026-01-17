@@ -13,43 +13,60 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- Load scripts: Use absolute paths for Netlify compatibility -->
-    <script src="/libs/react.min.js"></script>
-    <script src="/libs/react-dom.min.js"></script>
-    <script src="/libs/babel.min.js"></script>
-    <script src="/libs/tailwind.js"></script>
-    <script src="/libs/qrcode.min.js"></script>
+    <!-- Load scripts: Use relative paths for file:// protocol compatibility -->
+    <script>
+        // Detect protocol and use appropriate paths
+        const isFileProtocol = window.location.protocol === 'file:';
+        const libsPath = isFileProtocol ? './libs/' : '/libs/';
+        
+        // Load critical scripts with proper paths
+        const reactScript = document.createElement('script');
+        reactScript.src = libsPath + 'react.min.js';
+        reactScript.onerror = function() {
+            console.warn('⚠️ Local React failed, trying CDN...');
+            const cdnScript = document.createElement('script');
+            cdnScript.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
+            cdnScript.crossOrigin = 'anonymous';
+            document.head.appendChild(cdnScript);
+        };
+        document.head.appendChild(reactScript);
+        
+        const reactDomScript = document.createElement('script');
+        reactDomScript.src = libsPath + 'react-dom.min.js';
+        reactDomScript.onerror = function() {
+            console.warn('⚠️ Local ReactDOM failed, trying CDN...');
+            const cdnScript = document.createElement('script');
+            cdnScript.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
+            cdnScript.crossOrigin = 'anonymous';
+            document.head.appendChild(cdnScript);
+        };
+        document.head.appendChild(reactDomScript);
+        
+        const babelScript = document.createElement('script');
+        babelScript.src = libsPath + 'babel.min.js';
+        babelScript.onerror = function() {
+            console.warn('⚠️ Local Babel failed, trying CDN...');
+            const cdnScript = document.createElement('script');
+            cdnScript.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
+            document.head.appendChild(cdnScript);
+        };
+        document.head.appendChild(babelScript);
+        
+        // Load optional scripts
+        const tailwindScript = document.createElement('script');
+        tailwindScript.src = libsPath + 'tailwind.js';
+        tailwindScript.onerror = () => console.warn('⚠️ Tailwind not found (optional)');
+        document.head.appendChild(tailwindScript);
+        
+        const qrcodeScript = document.createElement('script');
+        qrcodeScript.src = libsPath + 'qrcode.min.js';
+        qrcodeScript.onerror = () => console.warn('⚠️ QRCode not found (optional)');
+        document.head.appendChild(qrcodeScript);
+    </script>
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="/firebase-config.js"></script>
-    <!-- Fallback to CDN if local files fail (only works online) -->
-    <script>
-        // Wait a bit then check if libraries loaded, fallback to CDN if needed
-        setTimeout(() => {
-            if (typeof React === 'undefined') {
-                console.log('⚠️ Local React failed, trying CDN...');
-                const r = document.createElement('script');
-                r.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
-                r.crossOrigin = 'anonymous';
-                r.onerror = () => console.error('❌ CDN React also failed');
-                document.head.appendChild(r);
-            }
-            if (typeof ReactDOM === 'undefined') {
-                const rd = document.createElement('script');
-                rd.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
-                rd.crossOrigin = 'anonymous';
-                rd.onerror = () => console.error('❌ CDN ReactDOM also failed');
-                document.head.appendChild(rd);
-            }
-            if (typeof Babel === 'undefined') {
-                const b = document.createElement('script');
-                b.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
-                b.onerror = () => console.error('❌ CDN Babel also failed');
-                document.head.appendChild(b);
-            }
-        }, 1000);
-    </script>
     
     <style>
         /* ============= ULTIMATE POS ANIMATIONS ============= */
