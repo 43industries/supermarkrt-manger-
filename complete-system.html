@@ -9,44 +9,96 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- Load scripts: Use standard script tags - browser will handle loading -->
-    <script src="./libs/react.min.js" onerror="console.error('Failed to load React from local file')"></script>
-    <script src="./libs/react-dom.min.js" onerror="console.error('Failed to load ReactDOM from local file')"></script>
-    <script src="./libs/babel.min.js" onerror="console.error('Failed to load Babel from local file')"></script>
-    <script src="./libs/tailwind.js" onerror="console.error('Failed to load Tailwind from local file')"></script>
-    <script src="./libs/qrcode.min.js" onerror="console.error('Failed to load QRCode from local file')"></script>
-    <!-- Fallback to CDN if local files fail (only works online) -->
+    <!-- Load scripts: Use both relative and absolute paths for better compatibility -->
     <script>
-        // Wait a bit then check if libraries loaded
-        setTimeout(function() {
-            // Check if React loaded, if not try CDN
-            if (typeof React === 'undefined') {
-                console.log('Local React failed, trying CDN...');
-                const r = document.createElement('script');
-                r.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
-                r.crossOrigin = 'anonymous';
-                r.onload = function() { console.log('React loaded from CDN'); };
-                r.onerror = function() { console.error('Failed to load React from CDN'); };
-                document.head.appendChild(r);
+        // Function to load script with fallback
+        function loadScript(src, fallbackSrc, name) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    console.log(`✅ ${name} loaded from local file`);
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.warn(`⚠️ Failed to load ${name} from local file, trying CDN...`);
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = fallbackSrc;
+                    fallbackScript.crossOrigin = 'anonymous';
+                    fallbackScript.onload = () => {
+                        console.log(`✅ ${name} loaded from CDN`);
+                        resolve();
+                    };
+                    fallbackScript.onerror = () => {
+                        console.error(`❌ Failed to load ${name} from both local and CDN`);
+                        reject(new Error(`Failed to load ${name}`));
+                    };
+                    document.head.appendChild(fallbackScript);
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // Load all required libraries
+        Promise.all([
+            loadScript('/libs/react.min.js', 'https://unpkg.com/react@18/umd/react.production.min.js', 'React'),
+            loadScript('/libs/react-dom.min.js', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', 'ReactDOM'),
+            loadScript('/libs/babel.min.js', 'https://unpkg.com/@babel/standalone/babel.min.js', 'Babel')
+        ]).then(() => {
+            console.log('✅ All core libraries loaded successfully');
+            // Mark that libraries are ready
+            window.librariesReady = true;
+            // Dispatch event for event listeners
+            window.dispatchEvent(new Event('librariesReady'));
+        }).catch((error) => {
+            console.error('❌ Critical error loading libraries:', error);
+            showError('Failed to load required libraries. Please check your internet connection or ensure the libs folder exists.');
+        });
+
+        // Also try relative paths as backup
+        const relativeScripts = document.createElement('script');
+        relativeScripts.innerHTML = `
+            // Backup: Try relative paths
+            if (typeof React === 'undefined' && typeof window.React === 'undefined') {
+                const reactScript = document.createElement('script');
+                reactScript.src = './libs/react.min.js';
+                reactScript.onerror = () => console.warn('Relative path also failed for React');
+                document.head.appendChild(reactScript);
             }
-            if (typeof ReactDOM === 'undefined') {
-                console.log('Local ReactDOM failed, trying CDN...');
-                const rd = document.createElement('script');
-                rd.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
-                rd.crossOrigin = 'anonymous';
-                rd.onload = function() { console.log('ReactDOM loaded from CDN'); };
-                rd.onerror = function() { console.error('Failed to load ReactDOM from CDN'); };
-                document.head.appendChild(rd);
+            if (typeof ReactDOM === 'undefined' && typeof window.ReactDOM === 'undefined') {
+                const reactDomScript = document.createElement('script');
+                reactDomScript.src = './libs/react-dom.min.js';
+                reactDomScript.onerror = () => console.warn('Relative path also failed for ReactDOM');
+                document.head.appendChild(reactDomScript);
             }
-            if (typeof Babel === 'undefined') {
-                console.log('Local Babel failed, trying CDN...');
-                const b = document.createElement('script');
-                b.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
-                b.onload = function() { console.log('Babel loaded from CDN'); };
-                b.onerror = function() { console.error('Failed to load Babel from CDN'); };
-                document.head.appendChild(b);
+        `;
+        document.head.appendChild(relativeScripts);
+    </script>
+    <!-- Load non-critical scripts -->
+    <script src="/libs/tailwind.js" onerror="console.warn('Tailwind failed to load')"></script>
+    <script src="/libs/qrcode.min.js" onerror="console.warn('QRCode failed to load')"></script>
+    
+    <script>
+        // Error display function
+        function showError(message) {
+            const root = document.getElementById('root');
+            if (root) {
+                root.innerHTML = `
+                    <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;">
+                            <h1 style="color: #dc3545; margin-bottom: 20px; font-size: 24px;">⚠️ Error Loading Application</h1>
+                            <p style="color: #666; margin-bottom: 20px; line-height: 1.6;">${message}</p>
+                            <button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                Reload Page
+                            </button>
+                            <p style="margin-top: 20px; color: #999; font-size: 12px;">
+                                Open browser console (F12) for more details
+                            </p>
+                        </div>
+                    </div>
+                `;
             }
-        }, 500);
+        }
     </script>
     
     <style>
@@ -7416,60 +7468,99 @@
           );
         };
 
-        // Wait for React and ReactDOM to be available
-        function initApp() {
-            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-                console.log('⏳ Waiting for React libraries to load...');
-                setTimeout(initApp, 200);
-                return;
-            }
-            
+        // Check if libraries are ready and initialize
+        function checkAndInit() {
             const rootElement = document.getElementById('root');
             if (!rootElement) {
                 console.error('❌ Root element not found! Creating one...');
                 const rootDiv = document.createElement('div');
                 rootDiv.id = 'root';
                 document.body.appendChild(rootDiv);
-                initApp();
+                setTimeout(checkAndInit, 100);
                 return;
             }
-            
+
+            // Check if React and ReactDOM are loaded
+            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                console.log('⏳ Waiting for React libraries to load...');
+                // Retry after a delay, but only up to 30 times (30 seconds max)
+                if (!window.initRetries) window.initRetries = 0;
+                if (window.initRetries < 150) {
+                    window.initRetries++;
+                    setTimeout(checkAndInit, 200);
+                } else {
+                    console.error('❌ React libraries failed to load after 30 seconds');
+                    showError('React libraries failed to load. Please refresh the page or check your internet connection.');
+                }
+                return;
+            }
+
+            // Check if Babel is loaded (optional but helpful)
+            if (typeof Babel === 'undefined') {
+                console.warn('⚠️ Babel not loaded, but continuing...');
+            }
+
+            // All libraries are ready, initialize the app
             try {
                 console.log('✅ React libraries loaded, initializing application...');
+                
+                // Make sure CompleteSystem is defined
+                if (typeof CompleteSystem === 'undefined') {
+                    console.error('❌ CompleteSystem component not found!');
+                    showError('Application component not found. The page may be corrupted.');
+                    return;
+                }
+
                 const root = ReactDOM.createRoot(rootElement);
                 root.render(React.createElement(CompleteSystem));
                 console.log('✅ Complete system loaded successfully!');
+                
+                // Clear any loading messages
+                window.librariesReady = true;
             } catch (error) {
                 console.error('❌ Error rendering application:', error);
                 const errorHtml = `
-                    <div style="padding: 50px; text-align: center; font-family: Arial;">
-                        <h1 style="color: red; margin-bottom: 20px;">Error Loading Application</h1>
-                        <p style="color: #666; margin-bottom: 10px;">There was an error loading the application:</p>
-                        <pre style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; max-width: 800px; margin: 0 auto;">
-                            ${error.toString()}
-                            ${error.stack || ''}
-                        </pre>
-                        <p style="margin-top: 20px; color: #666; font-size: 12px;">
-                            Check the browser console (F12) for more details.
-                        </p>
-                        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                            Reload Page
-                        </button>
+                    <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px;">
+                            <h1 style="color: #dc3545; margin-bottom: 20px; font-size: 24px;">❌ Error Loading Application</h1>
+                            <p style="color: #666; margin-bottom: 20px;">There was an error loading the application:</p>
+                            <pre style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; max-width: 100%; border-radius: 5px; font-size: 12px;">
+${error.toString()}
+${error.stack || ''}
+                            </pre>
+                            <p style="margin-top: 20px; color: #666; font-size: 12px;">
+                                Check the browser console (F12) for more details.
+                            </p>
+                            <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                Reload Page
+                            </button>
+                        </div>
                     </div>
                 `;
                 rootElement.innerHTML = errorHtml;
             }
         }
         
-        // Start initialization after ensuring libraries are loaded
-        // Babel processes type="text/babel" scripts automatically, but we still need to wait for React
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(initApp, 1000);
-            });
-        } else {
-            setTimeout(initApp, 1000);
+        // Start initialization after DOM is ready
+        function startInit() {
+            // Wait a bit for scripts to load
+            setTimeout(() => {
+                checkAndInit();
+            }, 500);
         }
+
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startInit);
+        } else {
+            // DOM already ready
+            startInit();
+        }
+
+        // Also listen for library ready signal from script loader
+        window.addEventListener('librariesReady', () => {
+            setTimeout(checkAndInit, 100);
+        });
     </script>
 </body>
 </html>

@@ -57,3 +57,4 @@ Your supermarket POS system is now live on Vercel!
 
 **Quick Link**: https://vercel.com/new
 
+
