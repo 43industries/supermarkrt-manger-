@@ -6,7 +6,7 @@
     <title>Supermarket POS System - Offline</title>
     <meta name="description" content="Complete supermarket management and POS system - Works offline">
     <meta name="theme-color" content="#3b82f6">
-    <link rel="manifest" href="./manifest.json" onerror="console.warn('⚠️ Manifest.json not found (non-critical)')">
+    <link rel="manifest" href="./manifest.json" onerror="console.warn('⚠️ Manifest.json not found (non-critical)')" onload="console.log('✅ Manifest loaded')">
     <!-- Icon removed - using default if not available -->
     <!-- Prevent caching - forces browser to reload latest version -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -5760,11 +5760,20 @@
             try {
                 console.log('✅ Libraries loaded, initializing application...');
                 
-                // Make sure CompleteSystem is defined
+                // Make sure CompleteSystem is defined (it's in a Babel script, might need a moment)
                 if (typeof CompleteSystem === 'undefined') {
-                    console.error('❌ CompleteSystem component not found!');
-                    rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;"><h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Loading Application</h1><p style="color: #666; margin-bottom: 20px;">CompleteSystem component not found. The page may be corrupted or still loading.</p><p style="color: #999; font-size: 12px; margin-bottom: 20px;">If this persists, check the browser console (F12) for more details.</p><button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Reload Page</button></div></div>';
-                    return;
+                    console.log('⏳ CompleteSystem not yet defined, waiting... (this is normal for Babel scripts)');
+                    // Retry after a short delay - Babel might still be processing
+                    if (!window.componentRetries) window.componentRetries = 0;
+                    if (window.componentRetries < 50) {
+                        window.componentRetries++;
+                        setTimeout(initApp, 200);
+                        return;
+                    } else {
+                        console.error('❌ CompleteSystem component not found after waiting!');
+                        rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;"><h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Loading Application</h1><p style="color: #666; margin-bottom: 20px;">CompleteSystem component not found. The page may be corrupted or still loading.</p><p style="color: #999; font-size: 12px; margin-bottom: 20px;">If this persists, check the browser console (F12) for more details.</p><button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Reload Page</button></div></div>';
+                        return;
+                    }
                 }
                 
                 // Use ReactDOM.createRoot if available (React 18+), otherwise fallback to render (React 17-)
