@@ -6,7 +6,7 @@
     <title>Supermarket POS System - Offline</title>
     <meta name="description" content="Complete supermarket management and POS system - Works offline">
     <meta name="theme-color" content="#3b82f6">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="./manifest.json" onerror="console.warn('⚠️ Manifest.json not found (non-critical)')">
     <!-- Icon removed - using default if not available -->
     <!-- Prevent caching - forces browser to reload latest version -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -63,10 +63,26 @@
         qrcodeScript.onerror = () => console.warn('⚠️ QRCode not found (optional)');
         document.head.appendChild(qrcodeScript);
     </script>
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="/firebase-config.js"></script>
+    <!-- Firebase SDKs (optional, for online features) -->
+    <script>
+        // Load Firebase scripts (optional - app works without them)
+        const firebaseAppScript = document.createElement('script');
+        firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
+        firebaseAppScript.onerror = () => console.warn('⚠️ Firebase App failed to load - offline mode will work');
+        document.head.appendChild(firebaseAppScript);
+        
+        const firebaseFirestoreScript = document.createElement('script');
+        firebaseFirestoreScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
+        firebaseFirestoreScript.onerror = () => console.warn('⚠️ Firebase Firestore failed to load - offline mode will work');
+        document.head.appendChild(firebaseFirestoreScript);
+        
+        // Load firebase-config.js with correct path
+        const firebaseConfigScript = document.createElement('script');
+        const configPath = window.location.protocol === 'file:' ? './firebase-config.js' : '/firebase-config.js';
+        firebaseConfigScript.src = configPath;
+        firebaseConfigScript.onerror = () => console.warn('⚠️ Firebase config failed to load - offline mode will work');
+        document.head.appendChild(firebaseConfigScript);
+    </script>
     
     <style>
         /* ============= ULTIMATE POS ANIMATIONS ============= */
