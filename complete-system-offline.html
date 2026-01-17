@@ -5727,6 +5727,7 @@
 
         // Initialize app with proper error handling
         function initApp() {
+            console.log('🔧 initApp() called - checking libraries...');
             // Check if required libraries are loaded (Babel is optional)
             if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
                 console.log('⏳ Waiting for React libraries to load...');
@@ -5807,19 +5808,32 @@ ${error.stack || ''}
         
         // Listen for libraries ready event
         window.addEventListener('librariesReady', () => {
-            setTimeout(initApp, 100);
+            console.log('📢 librariesReady event received!');
+            setTimeout(() => {
+                console.log('⏰ Calling initApp from librariesReady event...');
+                initApp();
+            }, 100);
         });
 
         // Start initialization when DOM is ready
         function startInit() {
+            console.log('🚀 startInit() called');
             // Wait a bit for scripts to load, then try to initialize
-            setTimeout(initApp, 1000);
+            setTimeout(() => {
+                console.log('⏰ Timeout reached in startInit, calling initApp...');
+                initApp();
+            }, 2000); // Increased to 2 seconds to give Babel more time
         }
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', startInit);
+            console.log('📄 Document still loading, waiting for DOMContentLoaded...');
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('📄 DOMContentLoaded fired');
+                startInit();
+            });
         } else {
             // DOM already ready
+            console.log('📄 DOM already ready, starting init...');
             startInit();
         }
     </script>
