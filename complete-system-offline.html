@@ -5760,6 +5760,13 @@
             try {
                 console.log('✅ Libraries loaded, initializing application...');
                 
+                // Make sure CompleteSystem is defined
+                if (typeof CompleteSystem === 'undefined') {
+                    console.error('❌ CompleteSystem component not found!');
+                    rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;"><h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Loading Application</h1><p style="color: #666; margin-bottom: 20px;">CompleteSystem component not found. The page may be corrupted or still loading.</p><p style="color: #999; font-size: 12px; margin-bottom: 20px;">If this persists, check the browser console (F12) for more details.</p><button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Reload Page</button></div></div>';
+                    return;
+                }
+                
                 // Use ReactDOM.createRoot if available (React 18+), otherwise fallback to render (React 17-)
                 if (typeof ReactDOM.createRoot === 'function') {
                     // React 18+
