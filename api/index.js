@@ -17,8 +17,26 @@ app.use(express.json());
 
 // Debug middleware to log incoming paths
 app.use((req, res, next) => {
-  console.log('Incoming request:', req.method, req.url, req.path);
+  console.log('Incoming request:', {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl
+  });
   next();
+});
+
+// Handle root API path
+app.get('/api', (req, res) => {
+  res.json({ 
+    message: 'API is working',
+    endpoints: [
+      '/api/health',
+      '/api/mpesa/status',
+      '/api/mpesa/stkpush'
+    ]
+  });
 });
 
 // M-Pesa Configuration from environment variables
