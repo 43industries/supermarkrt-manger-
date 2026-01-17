@@ -12,7 +12,8 @@
     "axios": "^1.6.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "serverless-http": "^3.2.0"
+    "serverless-http": "^3.2.0",
+    "sqlite3": "^5.1.6"
   },
   "author": "43_Industries",
   "license": "ISC"

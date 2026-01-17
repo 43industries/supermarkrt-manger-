@@ -1,14 +1,19 @@
 # Netlify Configuration for Supermarket POS System
-# This is a static site deployment using localStorage for data storage
+# ⚠️ WARNING: Backend features (database, API) won't work on Netlify
+# This is for STATIC FRONTEND ONLY (UI preview/demo)
+# 
+# For full-stack deployment, use Railway or Render instead
+# See NETLIFY_FULL_STACK_GUIDE.md for details
 
 [build]
   # No build command needed - we're deploying static HTML files
   publish = "."
+  command = "echo 'Static site - no build needed'"
 
-# Redirect root to offline application (works offline)
+# Redirect root to main application
 [[redirects]]
   from = "/"
-  to = "/complete-system-offline.html"
+  to = "/complete-system.html"
   status = 200
 
 # Ensure all files are served correctly
