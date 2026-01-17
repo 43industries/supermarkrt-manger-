@@ -18,7 +18,7 @@
 <body>
     <div id="root"></div>
     
-    <script type="text/babel" src="supermarket.jsx"></script>
+    <!-- supermarket.jsx - loaded via fetch() below if using web server -->
     
     <script type="text/babel">
         const { useState } = React;
@@ -202,30 +202,71 @@
     </script>
     
     <script type="text/babel">
-        // Read and parse the component file
-        fetch('supemarket')
-            .then(response => response.text())
-            .then(code => {
-                // Extract component code and inject icons
-                const componentCode = code.replace(
-                    /import .* from ['"]lucide-react['"];?/g,
-                    '// Icons provided inline'
-                );
-                
-                // Evaluate the component code
-                const wrappedCode = `
-                    ${componentCode}
+        // Check if using file:// protocol (fetch doesn't work)
+        if (window.location.protocol === 'file:') {
+            document.getElementById('root').innerHTML = `
+                <div style="padding: 50px; text-align: center; font-family: Arial;">
+                    <h1 style="color: #dc3545; margin-bottom: 20px;">⚠️ Cannot Load with file:// Protocol</h1>
+                    <p style="color: #666; margin-bottom: 20px; font-size: 18px;">
+                        This file requires a web server to work properly.
+                    </p>
+                    <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; text-align: left;">
+                        <h2 style="color: #333; margin-bottom: 15px;">Quick Fix:</h2>
+                        <p style="color: #666; margin-bottom: 20px;">
+                            <strong>Option 1: Use complete-system-offline.html instead</strong><br>
+                            This file is designed to work offline and doesn't need a server.
+                        </p>
+                        <p style="color: #666; margin-bottom: 20px;">
+                            <strong>Option 2: Use a web server</strong><br>
+                            Run: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">node server.js</code><br>
+                            Then open: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">http://localhost:3000/index.html</code>
+                        </p>
+                        <p style="color: #666; margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                            <strong>Recommended:</strong> Use <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">complete-system-offline.html</code> for offline use without a server.
+                        </p>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Read and parse the component file (only works with http:// or https://)
+            fetch('supemarket')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(code => {
+                    // Extract component code and inject icons
+                    const componentCode = code.replace(
+                        /import .* from ['"]lucide-react['"];?/g,
+                        '// Icons provided inline'
+                    );
                     
-                    const root = ReactDOM.createRoot(document.getElementById('root'));
-                    root.render(<SupermarketManagementSystem />);
-                `;
-                
-                eval(Babel.transform(wrappedCode, { presets: ['react'] }).code);
-            })
-            .catch(error => {
-                console.error('Error loading component:', error);
-                document.getElementById('root').innerHTML = '<div class="p-8 text-center"><h1 class="text-2xl text-red-600">Error loading application. Please check console.</h1></div>';
-            });
+                    // Evaluate the component code
+                    const wrappedCode = `
+                        ${componentCode}
+                        
+                        const root = ReactDOM.createRoot(document.getElementById('root'));
+                        root.render(<SupermarketManagementSystem />);
+                    `;
+                    
+                    eval(Babel.transform(wrappedCode, { presets: ['react'] }).code);
+                })
+                .catch(error => {
+                    console.error('Error loading component:', error);
+                    document.getElementById('root').innerHTML = `
+                        <div style="padding: 50px; text-align: center; font-family: Arial;">
+                            <h1 style="color: red; margin-bottom: 20px;">Error Loading Application</h1>
+                            <p style="color: #666;">Could not load component file.</p>
+                            <p style="color: #999; font-size: 12px; margin-top: 20px;">Error: ${error.message}</p>
+                            <p style="color: #666; margin-top: 20px;">
+                                <strong>Tip:</strong> Try using <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">complete-system-offline.html</code> instead.
+                            </p>
+                        </div>
+                    `;
+                });
+        }
     </script>
 </body>
 </html>
