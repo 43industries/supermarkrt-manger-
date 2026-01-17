@@ -437,6 +437,30 @@
             </svg>
         );
 
+        const Clock = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+        );
+
+        const Building = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12h12"/><path d="M6 16h12"/><path d="M6 20h12"/><path d="M6 8h12"/>
+            </svg>
+        );
+
+        const Activity = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+        );
+
+        const BookOpen = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+        );
+
         const X = ({ size = 24 }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
@@ -640,13 +664,96 @@
             currency: 'KES',
             currencySymbol: 'KES',
             footerText: 'Thank you for shopping at 43 INDUSTRIES',
-            showFooter: true
+            showFooter: true,
+            pricesIncludeVAT: true, // Set to true if selling prices already include 16% VAT (common in Kenya)
+            vatRate: 0.16 // 16% VAT rate
           };
 
           const [storeConfig, setStoreConfig] = useState(() => {
             const saved = localStorage.getItem('storeConfig');
             return saved ? JSON.parse(saved) : defaultStoreConfig;
           });
+
+          // Users state for admin management
+          const [users, setUsers] = useState([]);
+          const [selectedCashier, setSelectedCashier] = useState(null);
+          const [cashierStats, setCashierStats] = useState(null);
+          const [cashierActivities, setCashierActivities] = useState([]);
+          const [showCashierMonitoring, setShowCashierMonitoring] = useState(false);
+
+          // Enterprise Features State
+          const [branches, setBranches] = useState([]);
+          const [selectedBranch, setSelectedBranch] = useState(null);
+          const [stockMovements, setStockMovements] = useState([]);
+          const [stockAlerts, setStockAlerts] = useState([]);
+          const [employeeTimeLogs, setEmployeeTimeLogs] = useState([]);
+          const [employeeStatus, setEmployeeStatus] = useState(null);
+          const [ledgerEntries, setLedgerEntries] = useState([]);
+          const [trialBalance, setTrialBalance] = useState(null);
+          const [showBranchForm, setShowBranchForm] = useState(false);
+          const [showLedgerForm, setShowLedgerForm] = useState(false);
+          const [newBranch, setNewBranch] = useState({ name: '', code: '', address: '', phone: '', email: '', managerId: '' });
+          const [newLedgerEntry, setNewLedgerEntry] = useState({ date: new Date().toISOString().split('T')[0], accountType: 'Revenue', accountName: '', debit: 0, credit: 0, description: '', branchId: null });
+
+          // Fetch users from API when component mounts or user logs in
+          useEffect(() => {
+            if (isLoggedIn && currentUser) {
+              fetch('/api/users')
+                .then(res => res.json())
+                .then(data => {
+                  if (Array.isArray(data)) {
+                    setUsers(data);
+                  }
+                })
+                .catch(err => {
+                  console.error('Error fetching users:', err);
+                  // Fallback to default users if API fails
+                  setUsers([
+                    { id: 1, username: 'admin', name: 'Admin', role: 'Admin', active: 1 },
+                    { id: 2, username: 'samuel', name: 'Samuel', role: 'Cashier', active: 1 },
+                    { id: 3, username: 'michael', name: 'Michael', role: 'Cashier', active: 1 }
+                  ]);
+                });
+            }
+          }, [isLoggedIn, currentUser]);
+
+          // Fetch enterprise features data
+          useEffect(() => {
+            if (isLoggedIn && currentUser) {
+              // Fetch branches
+              fetch('/api/branches')
+                .then(res => res.json())
+                .then(data => {
+                  if (Array.isArray(data)) {
+                    setBranches(data);
+                    if (data.length > 0 && !selectedBranch) {
+                      setSelectedBranch(data[0]);
+                    }
+                  }
+                })
+                .catch(err => console.error('Error fetching branches:', err));
+
+              // Fetch stock alerts
+              fetch('/api/stock/alerts')
+                .then(res => res.json())
+                .then(data => {
+                  if (Array.isArray(data)) {
+                    setStockAlerts(data);
+                  }
+                })
+                .catch(err => console.error('Error fetching stock alerts:', err));
+
+              // Fetch employee status (if cashier)
+              if (currentUser.role === 'Cashier' && currentUser.id) {
+                fetch(`/api/employees/${currentUser.id}/status`)
+                  .then(res => res.json())
+                  .then(data => {
+                    setEmployeeStatus(data);
+                  })
+                  .catch(err => console.error('Error fetching employee status:', err));
+              }
+            }
+          }, [isLoggedIn, currentUser, selectedBranch]);
 
           // Save store config whenever it changes
           useEffect(() => {
@@ -915,45 +1022,46 @@
           useEffect(() => { debouncedSave('cashRegister', cashRegister); }, [cashRegister]);
           useEffect(() => { debouncedSave('quickButtons', quickButtons); }, [quickButtons]);
 
-          // Store-specific users - Each store can have their own passwords
-          const defaultUsers = [
-            { id: 1, username: 'admin', password: 'admin123', role: 'Admin', name: 'Store Manager' },
-            { id: 2, username: 'cashier', password: 'cashier123', role: 'Cashier', name: 'Sales Assistant' }
-          ];
+          // API base URL
+          const API_BASE = window.location.origin;
 
-          const [users, setUsers] = useState(() => {
-            const saved = localStorage.getItem('storeUsers');
-            if (saved) {
-              return JSON.parse(saved);
-            }
-            // Save default users on first load
-            localStorage.setItem('storeUsers', JSON.stringify(defaultUsers));
-            return defaultUsers;
-          });
-
-          // Save users whenever they change
-          useEffect(() => {
-            localStorage.setItem('storeUsers', JSON.stringify(users));
-          }, [users]);
-
-          const handleLogin = (e) => {
+          const handleLogin = async (e) => {
             e.preventDefault();
             console.log('Attempting login with:', loginForm);
-            const user = users.find(u => u.username === loginForm.username && u.password === loginForm.password);
-            if (user) {
-              setCurrentUser(user);
-              setIsLoggedIn(true);
-              
-              // Save to localStorage if Remember Me is checked
-              if (loginForm.rememberMe) {
-                localStorage.setItem('logged_in_user', JSON.stringify(user));
+            
+            try {
+              const response = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  username: loginForm.username,
+                  password: loginForm.password
+                })
+              });
+
+              const data = await response.json();
+
+              if (response.ok && data.success) {
+                setCurrentUser(data.user);
+                setIsLoggedIn(true);
+                
+                // Save to localStorage if Remember Me is checked
+                if (loginForm.rememberMe) {
+                  localStorage.setItem('logged_in_user', JSON.stringify(data.user));
+                }
+                
+                console.log('Login successful:', data.user.name);
+                
+                // Auto-redirect cashiers to POS
+                if (data.user.role === 'Cashier') {
+                  setCurrentView('pos');
+                }
+              } else {
+                alert(`Invalid credentials!\n\nUsername: "${loginForm.username}"\n\nPlease check your credentials.\n\nDefault accounts:\nAdmin: admin / admin123\nSamuel: samuel / samuel123\nMichael: michael / michael123`);
               }
-              
-              console.log('Login successful:', user.name);
-            } else {
-              console.log('Login failed. Available users:', users);
-              const userList = users.map(u => `${u.role}: ${u.username} / [password hidden]`).join('\n');
-              alert(`Invalid credentials!\n\nYou entered:\nUsername: "${loginForm.username}"\nPassword: "${loginForm.password}"\n\nPlease check your credentials or contact your store administrator.`);
+            } catch (error) {
+              console.error('Login error:', error);
+              alert('Login failed. Please check your connection and try again.');
             }
           };
 
@@ -1489,10 +1597,33 @@
               return;
             }
             const sale = sales.find(s => s.id === selectedSaleForInvoice);
-            const subtotal = parseFloat(sale.total || 0);
             const taxRate = 0.16; // 16% VAT
-            const tax = parseFloat((subtotal * taxRate).toFixed(2));
-            const total = parseFloat((subtotal + tax).toFixed(2));
+            
+            // Check if prices are VAT-inclusive or VAT-exclusive
+            // Default: VAT-inclusive (prices already include tax) - common in Kenya
+            const pricesIncludeVAT = storeConfig.pricesIncludeVAT !== false; // Default to true
+            
+            let subtotal, tax, total;
+            
+            if (pricesIncludeVAT) {
+              // If prices include VAT: Extract VAT from total
+              // Formula: subtotal = total / (1 + taxRate)
+              subtotal = parseFloat((parseFloat(sale.total || 0) / (1 + taxRate)).toFixed(2));
+              tax = parseFloat((subtotal * taxRate).toFixed(2));
+              total = parseFloat(sale.total || 0); // Total remains the same
+              
+              // Verify: subtotal + tax should equal total (with rounding)
+              const verification = parseFloat((subtotal + tax).toFixed(2));
+              if (Math.abs(verification - total) > 0.01) {
+                // Adjust for rounding differences
+                tax = parseFloat((total - subtotal).toFixed(2));
+              }
+            } else {
+              // If prices exclude VAT: Add VAT to total
+              subtotal = parseFloat(sale.total || 0);
+              tax = parseFloat((subtotal * taxRate).toFixed(2));
+              total = parseFloat((subtotal + tax).toFixed(2));
+            }
             
             const invoice = {
               id: invoices.length > 0 ? Math.max(...invoices.map(i => i.id)) + 1 : 1,
@@ -1660,32 +1791,52 @@
             }
           };
 
-          // Void/Refund a completed sale
-          const voidSale = (saleId) => {
+          // Void/Refund a completed sale (with PIN protection)
+          const voidSale = async (saleId) => {
             const sale = sales.find(s => s.id === saleId);
             if (!sale) return;
             
-            if (!window.confirm(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nThis will:\n• Remove the sale from records\n• Restore stock for all items\n• Cannot be undone!`)) {
+            // Ask for PIN
+            const pin = prompt(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nEnter your PIN to continue:\n\n(This requires PIN verification)`);
+            if (!pin) {
+              alert('Void cancelled. PIN is required.');
               return;
             }
-            
-            // Restore stock
-            if (sale.itemDetails) {
-              const updatedProducts = products.map(product => {
-                const saleItem = sale.itemDetails.find(item => item.id === product.id);
-                if (saleItem) {
-                  return { ...product, stock: product.stock + saleItem.quantity };
-                }
-                return product;
+
+            try {
+              // Call API to void sale with PIN verification
+              const response = await fetch(`${API_BASE}/api/sales/${saleId}/void`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: currentUser.id,
+                  pin: pin
+                })
               });
-              setProducts(updatedProducts);
+
+              const data = await response.json();
+
+              if (response.ok && data.success) {
+                // Refresh sales and products from server
+                fetch(`${API_BASE}/api/sales`)
+                  .then(res => res.json())
+                  .then(salesData => setSales(salesData))
+                  .catch(err => console.error('Error fetching sales:', err));
+
+                fetch(`${API_BASE}/api/products`)
+                  .then(res => res.json())
+                  .then(productsData => setProducts(productsData))
+                  .catch(err => console.error('Error fetching products:', err));
+
+                alert(`✅ Sale #${saleId} voided successfully!\n\nStock restored for all items.\n\nAdmin has been notified.`);
+                setShowVoidSale(false);
+              } else {
+                alert(`❌ Void failed: ${data.error || 'Invalid PIN'}\n\nPlease check your PIN and try again.`);
+              }
+            } catch (error) {
+              console.error('Void sale error:', error);
+              alert('Error voiding sale. Please check your connection and try again.');
             }
-            
-            // Mark sale as voided (or remove it)
-            setSales(sales.map(s => s.id === saleId ? { ...s, voided: true, voidedAt: new Date().toISOString() } : s));
-            
-            alert('✅ Sale #' + saleId + ' has been voided.\n\nStock has been restored.');
-            setShowVoidSale(false);
           };
 
           // Cancel current order with confirmation
@@ -1755,26 +1906,32 @@
                   </div>
 
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600 font-semibold mb-2">Demo Credentials:</p>
+                    <p className="text-xs text-gray-600 font-semibold mb-2">Default Credentials:</p>
                     <p className="text-xs text-gray-600">Admin: admin / admin123</p>
-                    <p className="text-xs text-gray-600">Cashier: cashier / cashier123</p>
+                    <p className="text-xs text-gray-600">Samuel (Cashier): samuel / samuel123</p>
+                    <p className="text-xs text-gray-600">Michael (Cashier): michael / michael123</p>
                   </div>
                 </div>
               </div>
             );
           }
 
+          // Filter menu items based on user role (Cashiers only see POS)
           const menuItems = [
             { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, roles: ['Admin', 'Cashier'] },
             { id: 'pos', label: 'Point of Sale', icon: ShoppingCart, roles: ['Admin', 'Cashier'] },
+            { id: 'stock-tracking', label: 'Stock Tracking', icon: Activity, roles: ['Admin'] },
             { id: 'lowstock', label: 'Low Stock', icon: AlertCircle, roles: ['Admin'] },
             { id: 'stock', label: 'Add Stock', icon: Plus, roles: ['Admin'] },
             { id: 'products', label: 'Products & Prices', icon: Package, roles: ['Admin'] },
             { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['Admin'] },
             { id: 'invoices', label: 'Invoices', icon: ClipboardList, roles: ['Admin'] },
+            { id: 'expenses', label: 'Expenses', icon: DollarSign, roles: ['Admin'] },
             { id: 'customers', label: 'Customers', icon: Users, roles: ['Admin', 'Cashier'] },
             { id: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['Admin'] },
-            { id: 'expenses', label: 'Expenses', icon: DollarSign, roles: ['Admin'] },
+            { id: 'branches', label: 'Branches', icon: Building, roles: ['Admin'] },
+            { id: 'time-tracking', label: 'Time Tracking', icon: Clock, roles: ['Admin', 'Cashier'] },
+            { id: 'accounting', label: 'Accounting', icon: BookOpen, roles: ['Admin'] },
             { id: 'reports', label: 'Reports', icon: BarChart, roles: ['Admin'] },
             { id: 'settings', label: 'Store Settings', icon: Settings, roles: ['Admin'] },
           ];
@@ -6010,6 +6167,818 @@
                   </div>
                 )}
 
+                {currentView === 'cashier-monitoring' && selectedCashier && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-2xl font-bold">👤 Cashier Monitoring</h2>
+                        <p className="text-gray-600">Performance and activity tracking for {selectedCashier.name}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCurrentView('settings');
+                          setSelectedCashier(null);
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                      >
+                        ← Back to Settings
+                      </button>
+                    </div>
+
+                    {cashierStats ? (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+                          <p className="text-sm text-gray-600">Total Sales</p>
+                          <p className="text-3xl font-bold">{cashierStats.sales?.total || 0}</p>
+                        </div>
+                        <div className="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
+                          <p className="text-sm text-gray-600">Total Revenue</p>
+                          <p className="text-3xl font-bold">KES {(cashierStats.sales?.revenue || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
+                          <p className="text-sm text-gray-600">Total Profit</p>
+                          <p className="text-3xl font-bold">KES {(cashierStats.sales?.profit || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
+                          <p className="text-sm text-gray-600">Avg Transaction</p>
+                          <p className="text-3xl font-bold">KES {Math.round(cashierStats.sales?.avgTransaction || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">Loading cashier statistics...</p>
+                      </div>
+                    )}
+
+                    {cashierStats && (
+                      <div className="bg-white rounded-lg shadow p-6">
+                        <h3 className="text-xl font-bold mb-4">📊 Today's Performance</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Today's Sales</p>
+                            <p className="text-2xl font-bold">{cashierStats.sales?.today?.sales || 0}</p>
+                          </div>
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Today's Revenue</p>
+                            <p className="text-2xl font-bold">KES {(cashierStats.sales?.today?.revenue || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-xl font-bold mb-4">📝 Recent Activity</h3>
+                      {cashierActivities && cashierActivities.length > 0 ? (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {cashierActivities.map((activity, idx) => (
+                            <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <p className="font-semibold text-gray-800">{activity.action}</p>
+                                  <p className="text-sm text-gray-600">{activity.description}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-gray-500">{new Date(activity.created_at).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">No recent activity</p>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-xl font-bold mb-4">ℹ️ Account Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Username</p>
+                          <p className="font-semibold">{selectedCashier.username}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Full Name</p>
+                          <p className="font-semibold">{selectedCashier.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Role</p>
+                          <p className="font-semibold">{selectedCashier.role}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Account Created</p>
+                          <p className="font-semibold">{selectedCashier.created_at ? new Date(selectedCashier.created_at).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Last Login</p>
+                          <p className="font-semibold">{selectedCashier.last_login ? new Date(selectedCashier.last_login).toLocaleString() : 'Never'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Status</p>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            selectedCashier.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {selectedCashier.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {currentView === 'stock-tracking' && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold">📊 Real-Time Stock Tracking</h2>
+                      <button
+                        onClick={() => {
+                          fetch('/api/stock/alerts')
+                            .then(res => res.json())
+                            .then(data => {
+                              setStockAlerts(data);
+                              alert(`✅ Updated! Found ${data.length} stock alerts.`);
+                            });
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        Refresh Alerts
+                      </button>
+                    </div>
+
+                    {/* Stock Alerts */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-xl font-bold mb-4">⚠️ Low Stock Alerts</h3>
+                      {stockAlerts && stockAlerts.length > 0 ? (
+                        <div className="space-y-3">
+                          {stockAlerts.map((alert, idx) => (
+                            <div key={idx} className={`p-4 rounded-lg border-l-4 ${
+                              alert.alert_level === 'CRITICAL' ? 'bg-red-50 border-red-500' :
+                              alert.alert_level === 'LOW' ? 'bg-orange-50 border-orange-500' :
+                              'bg-yellow-50 border-yellow-500'
+                            }`}>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-bold text-lg">{alert.product_name || alert.name}</p>
+                                  <p className="text-sm text-gray-600">Current Stock: {alert.stock} | Reorder Level: {alert.reorderLevel}</p>
+                                  <p className="text-sm font-semibold text-red-600">Deficit: {alert.stock_deficit} units</p>
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              alert.alert_level === 'CRITICAL' ? 'bg-red-600 text-white' :
+                              alert.alert_level === 'LOW' ? 'bg-orange-600 text-white' :
+                              'bg-yellow-600 text-white'
+                            }`}>
+                                  {alert.alert_level}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">✅ All stock levels are healthy!</p>
+                      )}
+                    </div>
+
+                    {/* Stock Movements History */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">📝 Stock Movement History</h3>
+                        <button
+                          onClick={() => {
+                            const branchId = selectedBranch ? selectedBranch.id : null;
+                            fetch(`/api/stock/movements${branchId ? `?branchId=${branchId}` : ''}`)
+                              .then(res => res.json())
+                              .then(data => {
+                                setStockMovements(data);
+                              })
+                              .catch(err => console.error('Error fetching movements:', err));
+                          }}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                        >
+                          Load History
+                        </button>
+                      </div>
+                      {stockMovements && stockMovements.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Date/Time</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Product</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Type</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Quantity</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Previous</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">New Stock</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">User</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Branch</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stockMovements.map((movement, idx) => (
+                                <tr key={idx} className="border-t hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm">{new Date(movement.created_at).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold">{movement.product_name}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                      movement.movement_type === 'SALE' ? 'bg-red-100 text-red-700' :
+                                      movement.movement_type === 'PURCHASE' ? 'bg-green-100 text-green-700' :
+                                      movement.movement_type === 'RETURN' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {movement.movement_type}
+                                    </span>
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm text-right font-bold ${
+                                    movement.quantity > 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {movement.quantity > 0 ? '+' : ''}{movement.quantity}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-right">{movement.previous_stock}</td>
+                                  <td className="px-4 py-3 text-sm text-right font-bold">{movement.new_stock}</td>
+                                  <td className="px-4 py-3 text-sm">{movement.user_name || '-'}</td>
+                                  <td className="px-4 py-3 text-sm">{movement.branch_name || 'Main'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">Click "Load History" to view stock movements</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currentView === 'time-tracking' && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold">⏰ Employee Time Tracking</h2>
+                      {currentUser && currentUser.role === 'Cashier' && employeeStatus && (
+                        <div className="flex items-center gap-4">
+                          {employeeStatus.isClockedIn ? (
+                            <>
+                              <span className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-bold">
+                                ✅ Clocked In
+                              </span>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Clock out now?')) {
+                                    fetch(`/api/employees/${currentUser.id}/clock-out`, { method: 'POST' })
+                                      .then(res => res.json())
+                                      .then(data => {
+                                        if (data.success) {
+                                          alert('✅ Clocked out successfully!');
+                                          fetch(`/api/employees/${currentUser.id}/status`)
+                                            .then(res => res.json())
+                                            .then(status => setEmployeeStatus(status));
+                                        } else {
+                                          alert('Error: ' + (data.error || 'Failed to clock out'));
+                                        }
+                                      })
+                                      .catch(err => {
+                                        console.error('Error:', err);
+                                        alert('Failed to clock out');
+                                      });
+                                }}
+                                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold"
+                              >
+                                Clock Out
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const branchId = selectedBranch ? selectedBranch.id : null;
+                                fetch(`/api/employees/${currentUser.id}/clock-in`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ branchId })
+                                })
+                                  .then(res => res.json())
+                                  .then(data => {
+                                    if (data.success) {
+                                      alert('✅ Clocked in successfully!');
+                                      fetch(`/api/employees/${currentUser.id}/status`)
+                                        .then(res => res.json())
+                                        .then(status => setEmployeeStatus(status));
+                                    } else {
+                                      alert('Error: ' + (data.error || 'Failed to clock in'));
+                                    }
+                                  })
+                                  .catch(err => {
+                                    console.error('Error:', err);
+                                    alert('Failed to clock in');
+                                  });
+                              }}
+                              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold"
+                            >
+                              Clock In
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Time Logs */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">📋 Time Log History</h3>
+                        <button
+                          onClick={() => {
+                            const userId = currentUser && currentUser.role === 'Admin' ? null : (currentUser?.id || null);
+                            fetch(`/api/employees/time-logs${userId ? `?userId=${userId}` : ''}`)
+                              .then(res => res.json())
+                              .then(data => {
+                                setEmployeeTimeLogs(data);
+                              })
+                              .catch(err => console.error('Error fetching time logs:', err));
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          Load Time Logs
+                        </button>
+                      </div>
+                      {employeeTimeLogs && employeeTimeLogs.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Employee</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Branch</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Clock In</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Clock Out</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Hours</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {employeeTimeLogs.map((log, idx) => (
+                                <tr key={idx} className="border-t hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm font-semibold">{log.employee_name}</td>
+                                  <td className="px-4 py-3 text-sm">{log.branch_name || 'Main'}</td>
+                                  <td className="px-4 py-3 text-sm">{new Date(log.clock_in).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm">{log.clock_out ? new Date(log.clock_out).toLocaleString() : '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-right font-bold">
+                                    {log.total_hours ? log.total_hours.toFixed(2) : log.clock_out ? 'Calculating...' : 'Active'}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                      log.clock_out ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {log.clock_out ? 'Completed' : 'Active'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">Click "Load Time Logs" to view time tracking history</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currentView === 'branches' && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold">🏢 Multi-Branch Management</h2>
+                      <button
+                        onClick={() => setShowBranchForm(true)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-2"
+                      >
+                        <Plus size={18} />
+                        Add New Branch
+                      </button>
+                    </div>
+
+                    {/* Branches List */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {branches && branches.length > 0 ? branches.map((branch, idx) => (
+                        <div key={idx} className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="text-xl font-bold">{branch.name}</h3>
+                              <p className="text-sm text-gray-600">Code: {branch.code}</p>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              branch.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {branch.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          {branch.address && <p className="text-sm text-gray-600 mb-1">📍 {branch.address}</p>}
+                          {branch.phone && <p className="text-sm text-gray-600 mb-1">📞 {branch.phone}</p>}
+                          {branch.email && <p className="text-sm text-gray-600 mb-1">✉️ {branch.email}</p>}
+                          {branch.manager_name && <p className="text-sm text-gray-600 mb-3">👤 Manager: {branch.manager_name}</p>}
+                          <button
+                            onClick={() => setSelectedBranch(branch)}
+                            className={`w-full px-4 py-2 rounded-lg font-semibold ${
+                              selectedBranch && selectedBranch.id === branch.id
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {selectedBranch && selectedBranch.id === branch.id ? 'Selected' : 'Select Branch'}
+                          </button>
+                        </div>
+                      )) : (
+                        <div className="col-span-3 text-center py-12 bg-white rounded-lg shadow">
+                          <p className="text-gray-500 mb-4">No branches found. Create your first branch!</p>
+                          <button
+                            onClick={() => setShowBranchForm(true)}
+                            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                          >
+                            Create Branch
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Branch Modal */}
+                    {showBranchForm && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">Add New Branch</h3>
+                            <button onClick={() => setShowBranchForm(false)} className="text-gray-500 hover:text-gray-700">
+                              <X size={24} />
+                            </button>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Branch Name *</label>
+                              <input
+                                type="text"
+                                value={newBranch.name}
+                                onChange={(e) => setNewBranch({...newBranch, name: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="Main Branch"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Branch Code *</label>
+                              <input
+                                type="text"
+                                value={newBranch.code}
+                                onChange={(e) => setNewBranch({...newBranch, code: e.target.value.toUpperCase()})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="MAIN"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Address</label>
+                              <input
+                                type="text"
+                                value={newBranch.address}
+                                onChange={(e) => setNewBranch({...newBranch, address: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="Street, City"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Phone</label>
+                                <input
+                                  type="text"
+                                  value={newBranch.phone}
+                                  onChange={(e) => setNewBranch({...newBranch, phone: e.target.value})}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                  placeholder="+254..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Email</label>
+                                <input
+                                  type="email"
+                                  value={newBranch.email}
+                                  onChange={(e) => setNewBranch({...newBranch, email: e.target.value})}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                  placeholder="branch@email.com"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2 pt-4">
+                              <button
+                                onClick={() => setShowBranchForm(false)}
+                                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!newBranch.name || !newBranch.code) {
+                                    alert('Please enter branch name and code');
+                                    return;
+                                  }
+                                  fetch('/api/branches', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(newBranch)
+                                  })
+                                    .then(res => res.json())
+                                    .then(data => {
+                                      if (data.error) {
+                                        alert('Error: ' + data.error);
+                                      } else {
+                                        alert('✅ Branch created successfully!');
+                                        setShowBranchForm(false);
+                                        setNewBranch({ name: '', code: '', address: '', phone: '', email: '', managerId: '' });
+                                        fetch('/api/branches')
+                                          .then(res => res.json())
+                                          .then(branches => {
+                                            if (Array.isArray(branches)) {
+                                              setBranches(branches);
+                                            }
+                                          });
+                                      }
+                                    })
+                                    .catch(err => {
+                                      console.error('Error:', err);
+                                      alert('Failed to create branch');
+                                    });
+                                }}
+                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                Create Branch
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentView === 'accounting' && (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold">📚 Accounting Ledger</h2>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            fetch('/api/accounting/trial-balance')
+                              .then(res => res.json())
+                              .then(data => {
+                                setTrialBalance(data);
+                                alert('✅ Trial balance loaded!');
+                              })
+                              .catch(err => {
+                                console.error('Error:', err);
+                                alert('Failed to load trial balance');
+                              });
+                          }}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                        >
+                          Trial Balance
+                        </button>
+                        <button
+                          onClick={() => setShowLedgerForm(true)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-2"
+                        >
+                          <Plus size={18} />
+                          New Entry
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Trial Balance Summary */}
+                    {trialBalance && (
+                      <div className="bg-white rounded-lg shadow p-6">
+                        <h3 className="text-xl font-bold mb-4">💰 Trial Balance Summary</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Debit</p>
+                            <p className="text-2xl font-bold">KES {trialBalance.summary.totalDebit.toLocaleString()}</p>
+                          </div>
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-600">Total Credit</p>
+                            <p className="text-2xl font-bold">KES {trialBalance.summary.totalCredit.toLocaleString()}</p>
+                          </div>
+                          <div className={`p-4 rounded-lg ${
+                            Math.abs(trialBalance.summary.difference) < 0.01 ? 'bg-green-50' : 'bg-red-50'
+                          }`}>
+                            <p className="text-sm text-gray-600">Difference</p>
+                            <p className={`text-2xl font-bold ${
+                              Math.abs(trialBalance.summary.difference) < 0.01 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              KES {trialBalance.summary.difference.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Account Type</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Account Name</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Debit</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Credit</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Balance</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {trialBalance.accounts.map((account, idx) => (
+                                <tr key={idx} className="border-t hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm">{account.account_type}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold">{account.account_name}</td>
+                                  <td className="px-4 py-3 text-sm text-right">{account.total_debit.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-sm text-right">{account.total_credit.toFixed(2)}</td>
+                                  <td className={`px-4 py-3 text-sm text-right font-bold ${
+                                    account.balance >= 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {account.balance.toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ledger Entries */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">📝 Ledger Entries</h3>
+                        <button
+                          onClick={() => {
+                            fetch('/api/accounting/ledger')
+                              .then(res => res.json())
+                              .then(data => {
+                                setLedgerEntries(data);
+                              })
+                              .catch(err => console.error('Error fetching entries:', err));
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          Load Entries
+                        </button>
+                      </div>
+                      {ledgerEntries && ledgerEntries.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Account Type</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Account Name</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Debit</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold">Credit</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Description</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Branch</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ledgerEntries.map((entry, idx) => (
+                                <tr key={idx} className="border-t hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm">{entry.date}</td>
+                                  <td className="px-4 py-3 text-sm">{entry.account_type}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold">{entry.account_name}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-blue-600">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-green-600">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{entry.description || '-'}</td>
+                                  <td className="px-4 py-3 text-sm">{entry.branch_name || 'Main'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">Click "Load Entries" to view ledger entries</p>
+                      )}
+                    </div>
+
+                    {/* Add Ledger Entry Modal */}
+                    {showLedgerForm && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">New Ledger Entry</h3>
+                            <button onClick={() => setShowLedgerForm(false)} className="text-gray-500 hover:text-gray-700">
+                              <X size={24} />
+                            </button>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Date *</label>
+                              <input
+                                type="date"
+                                value={newLedgerEntry.date}
+                                onChange={(e) => setNewLedgerEntry({...newLedgerEntry, date: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Account Type *</label>
+                              <select
+                                value={newLedgerEntry.accountType}
+                                onChange={(e) => setNewLedgerEntry({...newLedgerEntry, accountType: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              >
+                                <option value="Revenue">Revenue</option>
+                                <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                                <option value="Expenses">Expenses</option>
+                                <option value="Assets">Assets</option>
+                                <option value="Liabilities">Liabilities</option>
+                                <option value="Equity">Equity</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Account Name *</label>
+                              <input
+                                type="text"
+                                value={newLedgerEntry.accountName}
+                                onChange={(e) => setNewLedgerEntry({...newLedgerEntry, accountName: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="Sales Revenue, Cash, etc."
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Debit</label>
+                                <input
+                                  type="number"
+                                  value={newLedgerEntry.debit}
+                                  onChange={(e) => setNewLedgerEntry({...newLedgerEntry, debit: parseFloat(e.target.value) || 0, credit: 0})}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Credit</label>
+                                <input
+                                  type="number"
+                                  value={newLedgerEntry.credit}
+                                  onChange={(e) => setNewLedgerEntry({...newLedgerEntry, credit: parseFloat(e.target.value) || 0, debit: 0})}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                  placeholder="0.00"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Description</label>
+                              <textarea
+                                value={newLedgerEntry.description}
+                                onChange={(e) => setNewLedgerEntry({...newLedgerEntry, description: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                rows="3"
+                                placeholder="Transaction description..."
+                              />
+                            </div>
+                            <div className="flex gap-2 pt-4">
+                              <button
+                                onClick={() => setShowLedgerForm(false)}
+                                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!newLedgerEntry.date || !newLedgerEntry.accountName || (newLedgerEntry.debit === 0 && newLedgerEntry.credit === 0)) {
+                                    alert('Please fill all required fields and enter either debit or credit amount');
+                                    return;
+                                  }
+                                  fetch('/api/accounting/ledger', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      ...newLedgerEntry,
+                                      userId: currentUser?.id || null,
+                                      branchId: selectedBranch ? selectedBranch.id : null
+                                    })
+                                  })
+                                    .then(res => res.json())
+                                    .then(data => {
+                                      if (data.error) {
+                                        alert('Error: ' + data.error);
+                                      } else {
+                                        alert('✅ Ledger entry created successfully!');
+                                        setShowLedgerForm(false);
+                                        setNewLedgerEntry({ date: new Date().toISOString().split('T')[0], accountType: 'Revenue', accountName: '', debit: 0, credit: 0, description: '', branchId: null });
+                                        fetch('/api/accounting/ledger')
+                                          .then(res => res.json())
+                                          .then(entries => {
+                                            setLedgerEntries(entries);
+                                          });
+                                      }
+                                    })
+                                    .catch(err => {
+                                      console.error('Error:', err);
+                                      alert('Failed to create ledger entry');
+                                    });
+                                }}
+                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                Create Entry
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {currentView === 'settings' && (
                   <div className="space-y-6">
                     <h2 className="text-2xl font-bold">⚙️ Store Settings</h2>
@@ -6073,6 +7042,28 @@
                             placeholder="P051234567X"
                           />
                         </div>
+                        
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={storeConfig.pricesIncludeVAT !== false}
+                              onChange={(e) => setStoreConfig({...storeConfig, pricesIncludeVAT: e.target.checked})}
+                              className="w-4 h-4"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-yellow-800">✅ Prices Include VAT (16%)</p>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                {storeConfig.pricesIncludeVAT !== false 
+                                  ? 'Your selling prices already include 16% VAT. Invoices will correctly extract VAT from the total amount.'
+                                  : '⚠️ Your selling prices exclude VAT. Invoices will add 16% VAT on top of the total.'}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                <strong>Common in Kenya:</strong> Most retail prices are VAT-inclusive. Check this box if your prices already include tax.
+                              </p>
+                            </div>
+                          </label>
+                        </div>
 
                         <div>
                           <label className="block text-sm font-medium mb-2">Currency</label>
@@ -6116,12 +7107,76 @@
                       <div className="border-t-2 border-gray-300 pt-6 mt-6">
                         <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4 rounded">
                           <h3 className="text-xl font-bold mb-2 text-purple-800">🔐 User Accounts & Passwords</h3>
-                          <p className="text-sm text-purple-700">Change passwords for Admin and Cashier accounts. Each store can have different passwords.</p>
+                          <p className="text-sm text-purple-700">Manage Admin and Cashier accounts. Add new cashiers, change passwords, and monitor activity.</p>
                         </div>
+                        
+                        {/* Add New Cashier Button (Admin Only) */}
+                        {currentUser && currentUser.role === 'Admin' && (
+                          <div className="mb-4">
+                            <button
+                              onClick={() => {
+                                const name = prompt('Enter cashier full name:');
+                                if (!name) return;
+                                
+                                const username = prompt('Enter username (for login):');
+                                if (!username) return;
+                                
+                                const password = prompt('Enter password:');
+                                if (!password || password.length < 4) {
+                                  alert('⚠️ Password must be at least 4 characters');
+                                  return;
+                                }
+                                
+                                const phone = prompt('Enter phone number (optional):') || '';
+                                const email = prompt('Enter email (optional):') || '';
+                                
+                                // Create new cashier via API
+                                fetch('/api/users', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    username,
+                                    password,
+                                    name,
+                                    role: 'Cashier',
+                                    phone: phone || null,
+                                    email: email || null
+                                  })
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                  if (data.error) {
+                                    alert('❌ Error: ' + data.error);
+                                  } else {
+                                    alert(`✅ Cashier account created successfully!\n\nUsername: ${username}\nPassword: ${password}\n\nPlease share these credentials with the cashier.`);
+                                    // Reload users
+                                    fetch('/api/users')
+                                      .then(res => res.json())
+                                      .then(usersData => {
+                                        if (Array.isArray(usersData)) {
+                                          setUsers(usersData);
+                                        }
+                                      })
+                                      .catch(err => console.error('Error fetching users:', err));
+                                  }
+                                })
+                                .catch(err => {
+                                  console.error('Error creating user:', err);
+                                  alert('❌ Failed to create cashier account. Please try again.');
+                                });
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-2"
+                            >
+                              <Plus size={18} />
+                              Add New Cashier
+                            </button>
+                          </div>
+                        )}
+                        
                         <p className="text-sm text-gray-600 mb-4">Manage login credentials for this store. Each store can have different passwords.</p>
                         
                         <div className="space-y-4">
-                          {users.map((user, index) => (
+                          {users && users.length > 0 ? users.map((user, index) => (
                             <div key={user.id || index} className="bg-gray-50 border rounded-lg p-4">
                               <div className="flex justify-between items-start mb-3">
                                 <div>
@@ -6163,12 +7218,33 @@
                                       }
                                       
                                       if (confirm(`Change password for ${user.name} (${user.role})?`)) {
-                                        const updatedUsers = users.map(u => 
-                                          u.id === user.id ? { ...u, password: newPassword } : u
-                                        );
-                                        setUsers(updatedUsers);
-                                        passwordInput.value = '';
-                                        alert(`✅ Password updated successfully for ${user.name}!\n\nNew password: ${newPassword}\n\nPlease write this down and keep it safe.`);
+                                        // Update password via API
+                                        fetch(`/api/users/${user.id}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ password: newPassword })
+                                        })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                          if (data.error) {
+                                            alert('❌ Error: ' + data.error);
+                                          } else {
+                                            passwordInput.value = '';
+                                            alert(`✅ Password updated successfully for ${user.name}!\n\nNew password: ${newPassword}\n\nPlease write this down and keep it safe.`);
+                                            // Refresh users list
+                                            fetch('/api/users')
+                                              .then(res => res.json())
+                                              .then(usersData => {
+                                                if (Array.isArray(usersData)) {
+                                                  setUsers(usersData);
+                                                }
+                                              });
+                                          }
+                                        })
+                                        .catch(err => {
+                                          console.error('Error updating password:', err);
+                                          alert('❌ Failed to update password. Please try again.');
+                                        });
                                       }
                                     }}
                                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm"
@@ -6177,14 +7253,119 @@
                                   </button>
                                 </div>
                               </div>
+                              
+                              {/* View Monitoring Button (Admin Only) */}
+                              {currentUser && currentUser.role === 'Admin' && user.role === 'Cashier' && (
+                                <div className="mt-3 pt-3 border-t">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCashier(user);
+                                      setShowCashierMonitoring(true);
+                                      setCurrentView('cashier-monitoring');
+                                      // Fetch cashier stats
+                                      fetch(`/api/users/${user.id}/stats`)
+                                        .then(res => res.json())
+                                        .then(data => {
+                                          if (data.error) {
+                                            alert('Error: ' + data.error);
+                                          } else {
+                                            setCashierStats(data);
+                                            setCashierActivities(data.activity?.recent || []);
+                                          }
+                                        })
+                                        .catch(err => {
+                                          console.error('Error fetching cashier stats:', err);
+                                        });
+                                    }}
+                                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-sm flex items-center justify-center gap-2"
+                                  >
+                                    <TrendingUp size={16} />
+                                    View Monitoring & Performance
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>No users found. Loading...</p>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                           <p className="text-sm text-yellow-800">
                             <strong>⚠️ Important:</strong> Write down your passwords and keep them safe. If you forget your password, you'll need to clear browser data to reset.
                           </p>
+                        </div>
+                      </div>
+                      
+                      {/* ETIMS Configuration Section */}
+                      <div className="border-t-2 border-gray-300 pt-6 mt-6">
+                        <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4 rounded">
+                          <h3 className="text-xl font-bold mb-2 text-green-800">🧾 ETIMS (KRA Tax) Configuration</h3>
+                          <p className="text-sm text-green-700">Configure Electronic Tax Invoice Management System for automatic KRA submission.</p>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-blue-800 font-semibold mb-2">📋 ETIMS Status</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                              ETIMS integration allows automatic submission of invoices to KRA (Kenya Revenue Authority).
+                            </p>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                storeConfig.etimsEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {storeConfig.etimsEnabled ? '✅ Enabled' : '❌ Not Configured'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-3">
+                              To enable ETIMS, you need to:
+                            </p>
+                            <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside mb-3">
+                              <li>Register at <a href="https://etims.kra.go.ke" target="_blank" className="text-blue-600 underline">etims.kra.go.ke</a></li>
+                              <li>Get API credentials from KRA</li>
+                              <li>Enter credentials below</li>
+                            </ul>
+                            <button
+                              onClick={() => {
+                                const enabled = confirm('Enable ETIMS integration? (You must have KRA credentials first)');
+                                if (enabled) {
+                                  const consumerKey = prompt('Enter ETIMS Consumer Key:');
+                                  if (!consumerKey) return;
+                                  
+                                  const consumerSecret = prompt('Enter ETIMS Consumer Secret:');
+                                  if (!consumerSecret) return;
+                                  
+                                  setStoreConfig({
+                                    ...storeConfig,
+                                    etimsEnabled: true,
+                                    etimsConsumerKey: consumerKey,
+                                    etimsConsumerSecret: consumerSecret
+                                  });
+                                  alert('✅ ETIMS configuration saved!');
+                                }
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm"
+                            >
+                              {storeConfig.etimsEnabled ? 'Update ETIMS Credentials' : 'Configure ETIMS'}
+                            </button>
+                            {storeConfig.etimsEnabled && (
+                              <button
+                                onClick={() => {
+                                  if (confirm('Disable ETIMS integration?')) {
+                                    setStoreConfig({
+                                      ...storeConfig,
+                                      etimsEnabled: false
+                                    });
+                                  }
+                                }}
+                                className="ml-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm"
+                              >
+                                Disable ETIMS
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
