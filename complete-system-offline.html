@@ -19,38 +19,66 @@
         const isFileProtocol = window.location.protocol === 'file:';
         const libsPath = isFileProtocol ? './libs/' : '/libs/';
         
+        // Function to load script with callback
+        function loadScriptAsync(src, fallbackSrc, name, callback) {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = function() {
+                console.log(`✅ ${name} loaded from local file`);
+                if (callback) callback();
+            };
+            script.onerror = function() {
+                console.warn(`⚠️ Local ${name} failed, trying CDN...`);
+                const cdnScript = document.createElement('script');
+                cdnScript.src = fallbackSrc;
+                cdnScript.crossOrigin = 'anonymous';
+                cdnScript.onload = function() {
+                    console.log(`✅ ${name} loaded from CDN`);
+                    if (callback) callback();
+                };
+                cdnScript.onerror = function() {
+                    console.error(`❌ ${name} failed to load from both local and CDN`);
+                    if (callback) callback(); // Continue anyway
+                };
+                document.head.appendChild(cdnScript);
+            };
+            document.head.appendChild(script);
+        }
+
+        // Track loaded scripts
+        let reactLoaded = false;
+        let reactDomLoaded = false;
+        let babelLoaded = false;
+        
+        function checkAllLoaded() {
+            if (reactLoaded && reactDomLoaded && !window.librariesReady) {
+                window.librariesReady = true;
+                window.dispatchEvent(new Event('librariesReady'));
+                console.log('✅ All core libraries loaded successfully');
+            }
+        }
+
         // Load critical scripts with proper paths
-        const reactScript = document.createElement('script');
-        reactScript.src = libsPath + 'react.min.js';
-        reactScript.onerror = function() {
-            console.warn('⚠️ Local React failed, trying CDN...');
-            const cdnScript = document.createElement('script');
-            cdnScript.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
-            cdnScript.crossOrigin = 'anonymous';
-            document.head.appendChild(cdnScript);
-        };
-        document.head.appendChild(reactScript);
+        loadScriptAsync(
+            libsPath + 'react.min.js',
+            'https://unpkg.com/react@18/umd/react.production.min.js',
+            'React',
+            () => { reactLoaded = true; checkAllLoaded(); }
+        );
         
-        const reactDomScript = document.createElement('script');
-        reactDomScript.src = libsPath + 'react-dom.min.js';
-        reactDomScript.onerror = function() {
-            console.warn('⚠️ Local ReactDOM failed, trying CDN...');
-            const cdnScript = document.createElement('script');
-            cdnScript.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
-            cdnScript.crossOrigin = 'anonymous';
-            document.head.appendChild(cdnScript);
-        };
-        document.head.appendChild(reactDomScript);
+        loadScriptAsync(
+            libsPath + 'react-dom.min.js',
+            'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+            'ReactDOM',
+            () => { reactDomLoaded = true; checkAllLoaded(); }
+        );
         
-        const babelScript = document.createElement('script');
-        babelScript.src = libsPath + 'babel.min.js';
-        babelScript.onerror = function() {
-            console.warn('⚠️ Local Babel failed, trying CDN...');
-            const cdnScript = document.createElement('script');
-            cdnScript.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
-            document.head.appendChild(cdnScript);
-        };
-        document.head.appendChild(babelScript);
+        loadScriptAsync(
+            libsPath + 'babel.min.js',
+            'https://unpkg.com/@babel/standalone/babel.min.js',
+            'Babel',
+            () => { babelLoaded = true; }
+        );
         
         // Load optional scripts
         const tailwindScript = document.createElement('script');
@@ -5761,13 +5789,22 @@ ${error.stack || ''}
             }
         }
         
+        // Listen for libraries ready event
+        window.addEventListener('librariesReady', () => {
+            setTimeout(initApp, 100);
+        });
+
         // Start initialization when DOM is ready
+        function startInit() {
+            // Wait a bit for scripts to load, then try to initialize
+            setTimeout(initApp, 1000);
+        }
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(initApp, 500);
-            });
+            document.addEventListener('DOMContentLoaded', startInit);
         } else {
-            setTimeout(initApp, 500);
+            // DOM already ready
+            startInit();
         }
     </script>
     <!-- Service Worker Registration for Offline Functionality -->
