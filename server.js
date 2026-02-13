@@ -630,10 +630,15 @@ app.post('/api/sales/:id/void', (req, res) => {
                 db.serialize(() => {
                     db.run('BEGIN TRANSACTION');
 
-                    // Restore stock for each item
+                    // Restore stock for each item (only for tangible goods)
                     saleItems.forEach((item) => {
                         if (item.product_id) {
-                            db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+                            // Check if product is intangible before restoring stock
+                            db.get('SELECT isIntangible FROM products WHERE id = ?', [item.product_id], (err, product) => {
+                                if (!err && product && !product.isIntangible) {
+                                    db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+                                }
+                            });
                         }
                     });
 
@@ -746,17 +751,17 @@ app.get('/api/products/barcode/:barcode', (req, res) => {
 // Create new product/item
 app.post('/api/products', (req, res) => {
     const db = getDatabase();
-    const { name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier } = req.body;
+    const { name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible } = req.body;
 
     if (!name) {
         return res.status(400).json({ error: 'Product name is required' });
     }
 
-    const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(sql, [name, barcode || null, category || null, costPrice || 0, sellingPrice || 0, 
-                 stock || 0, reorderLevel || 10, supplier || null], function(err) {
+                 marketPrice || null, stock || 0, reorderLevel || 10, supplier || null, isIntangible ? 1 : 0], function(err) {
         if (err) {
             console.error('Error creating product:', err);
             if (err.message.includes('UNIQUE constraint')) {
@@ -779,7 +784,7 @@ app.post('/api/products', (req, res) => {
 app.put('/api/products/:id', (req, res) => {
     const db = getDatabase();
     const id = parseInt(req.params.id);
-    const { name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier, userId } = req.body;
+    const { name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible, soldByAmount, userId } = req.body;
 
     // Get old stock value for logging
     db.get('SELECT stock, name FROM products WHERE id = ?', [id], (err, oldProduct) => {
@@ -795,12 +800,13 @@ app.put('/api/products/:id', (req, res) => {
         const stockChange = newStock - oldStock;
 
         const sql = `UPDATE products 
-                     SET name = ?, barcode = ?, category = ?, costPrice = ?, sellingPrice = ?, 
-                         stock = ?, reorderLevel = ?, supplier = ?
+                     SET name = ?, barcode = ?, category = ?, costPrice = ?, sellingPrice = ?, marketPrice = ?,
+                         stock = ?, reorderLevel = ?, supplier = ?, isIntangible = ?
                      WHERE id = ?`;
 
-        db.run(sql, [name, barcode || null, category || null, costPrice || 0, sellingPrice || 0,
-                     stock !== undefined ? stock : oldStock, reorderLevel || 10, supplier || null, id], function(err) {
+        db.run(sql, [name, barcode || null, category || null, costPrice || 0, sellingPrice || 0, marketPrice || null,
+                     stock !== undefined ? stock : oldStock, reorderLevel || 10, supplier || null, 
+                     isIntangible ? 1 : 0, id], function(err) {
             if (err) {
                 console.error('Error updating product:', err);
                 if (err.message.includes('UNIQUE constraint')) {
@@ -885,14 +891,17 @@ app.post('/api/products/bulk-import', (req, res) => {
     // Process each item
     const processItem = (item, index) => {
         return new Promise((resolve) => {
-            const name = item.name || item.Name || `Product ${item.barcode || item.Barcode || index + 1}`;
-            const barcode = item.barcode || item.Barcode || null;
-            const category = item.category || item.Category || null;
-            const costPrice = parseFloat(item.costPrice || item['Cost Price'] || item.cost || item.Cost || 0) || 0;
-            const sellingPrice = parseFloat(item.sellingPrice || item['Selling Price'] || item.price || item.Price || 0) || 0;
-            const stock = parseInt(item.stock || item.Stock || item.quantity || item.Quantity || 0) || 0;
-            const reorderLevel = parseInt(item.reorderLevel || item['Reorder Level'] || item.reorder || item.Reorder || 10) || 10;
-            const supplier = item.supplier || item.Supplier || item.vendor || item.Vendor || null;
+                const name = item.name || item.Name || `Product ${item.barcode || item.Barcode || index + 1}`;
+                const barcode = item.barcode || item.Barcode || null;
+                const category = item.category || item.Category || null;
+                const costPrice = parseFloat(item.costPrice || item['Cost Price'] || item.cost || item.Cost || 0) || 0;
+                const sellingPrice = parseFloat(item.sellingPrice || item['Selling Price'] || item.price || item.Price || 0) || 0;
+                const marketPrice = parseFloat(item.marketPrice || item['Market Price'] || item.market || item.Market || 0) || null;
+                const stock = parseInt(item.stock || item.Stock || item.quantity || item.Quantity || 0) || 0;
+                const reorderLevel = parseInt(item.reorderLevel || item['Reorder Level'] || item.reorder || item.Reorder || 10) || 10;
+                const supplier = item.supplier || item.Supplier || item.vendor || item.Vendor || null;
+                const isIntangible = item.isIntangible || item['Is Intangible'] || item['Intangible'] || item['IsIntangible'] || false;
+                const soldByAmount = item.soldByAmount || item['Sold By Amount'] || item['SoldByAmount'] || false;
 
             if (barcode) {
                 // Check if product exists by barcode
@@ -904,11 +913,11 @@ app.post('/api/products/bulk-import', (req, res) => {
                         return;
                     }
 
-                    if (row) {
-                        // Update existing product
-                        db.run(`UPDATE products SET name = ?, category = ?, costPrice = ?, sellingPrice = ?, 
-                               stock = ?, reorderLevel = ?, supplier = ? WHERE id = ?`,
-                            [name, category, costPrice, sellingPrice, stock, reorderLevel, supplier, row.id],
+                        if (row) {
+                            // Update existing product
+                            db.run(`UPDATE products SET name = ?, category = ?, costPrice = ?, sellingPrice = ?, marketPrice = ?,
+                                   stock = ?, reorderLevel = ?, supplier = ?, isIntangible = ?, soldByAmount = ? WHERE id = ?`,
+                                [name, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0, soldByAmount ? 1 : 0, row.id],
                             (err) => {
                                 if (err) {
                                     errors.push({ row: index + 1, barcode, error: err.message });
@@ -919,11 +928,11 @@ app.post('/api/products/bulk-import', (req, res) => {
                                 resolve();
                             }
                         );
-                    } else {
-                        // Insert new product
-                        const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier)
-                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                        db.run(sql, [name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier],
+                        } else {
+                            // Insert new product
+                            const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible, soldByAmount)
+                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                            db.run(sql, [name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0, soldByAmount ? 1 : 0],
                             (err) => {
                                 if (err) {
                                     errors.push({ row: index + 1, barcode, error: err.message });
@@ -938,9 +947,9 @@ app.post('/api/products/bulk-import', (req, res) => {
                 });
             } else {
                 // Insert without barcode
-                const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                db.run(sql, [name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier],
+                const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                db.run(sql, [name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0],
                     (err) => {
                         if (err) {
                             errors.push({ row: index + 1, error: err.message });
@@ -1053,8 +1062,8 @@ app.post('/api/products/integrate-external', async (req, res) => {
 
                         if (row) {
                             db.run(`UPDATE products SET name = ?, category = ?, costPrice = ?, sellingPrice = ?, 
-                                   stock = ?, reorderLevel = ?, supplier = ? WHERE id = ?`,
-                                [name, category, costPrice, sellingPrice, stock, reorderLevel, supplier, row.id],
+                                   stock = ?, reorderLevel = ?, supplier = ?, isIntangible = ? WHERE id = ?`,
+                                [name, category, costPrice, sellingPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0, row.id],
                                 (err) => {
                                     if (err) {
                                         errors.push({ row: index + 1, barcode, error: err.message });
@@ -1065,9 +1074,9 @@ app.post('/api/products/integrate-external', async (req, res) => {
                                 }
                             );
                         } else {
-                            const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier)
-                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                            db.run(sql, [name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier],
+                            const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier, isIntangible)
+                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                            db.run(sql, [name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0],
                                 (err) => {
                                     if (err) {
                                         errors.push({ row: index + 1, barcode, error: err.message });
@@ -1080,9 +1089,9 @@ app.post('/api/products/integrate-external', async (req, res) => {
                         }
                     });
                 } else {
-                    const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                    db.run(sql, [name, barcode, category, costPrice, sellingPrice, stock, reorderLevel, supplier],
+                    const sql = `INSERT INTO products (name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible, soldByAmount)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                    db.run(sql, [name, barcode, category, costPrice, sellingPrice, marketPrice, stock, reorderLevel, supplier, isIntangible ? 1 : 0, soldByAmount ? 1 : 0],
                         (err) => {
                             if (err) {
                                 errors.push({ row: index + 1, error: err.message });
@@ -1729,12 +1738,17 @@ app.post('/api/returns', (req, res) => {
                         return;
                     }
 
-                    // Restore stock if restock is true
+                    // Restore stock if restock is true (only for tangible goods)
                     if (restock && product_id) {
-                        db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [quantity, product_id], (err) => {
-                            if (err) {
-                                console.error('Error restoring stock:', err);
-                                // Don't fail the return, just log the error
+                        // Check if product is intangible before restoring stock
+                        db.get('SELECT isIntangible FROM products WHERE id = ?', [product_id], (err, product) => {
+                            if (!err && product && !product.isIntangible) {
+                                db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [quantity, product_id], (err) => {
+                                    if (err) {
+                                        console.error('Error restoring stock:', err);
+                                        // Don't fail the return, just log the error
+                                    }
+                                });
                             }
                         });
                     }

@@ -333,10 +333,13 @@ const SupermarketManagementSystem = () => {
         alert('Error completing sale. Please try again.');
       }
     } else {
-      // LocalStorage mode - update locally
+      // LocalStorage mode - update locally (only for tangible goods)
       const updatedProducts = products.map(product => {
         const cartItem = cart.find(item => item.id === product.id);
-        return cartItem ? { ...product, stock: product.stock - cartItem.quantity } : product;
+        if (cartItem && !product.isIntangible) {
+          return { ...product, stock: product.stock - cartItem.quantity };
+        }
+        return product;
       });
       setProducts(updatedProducts);
 

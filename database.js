@@ -80,9 +80,12 @@ function createTables() {
         category TEXT,
         costPrice REAL NOT NULL,
         sellingPrice REAL NOT NULL,
+        marketPrice REAL,
         stock INTEGER DEFAULT 0,
         reorderLevel INTEGER DEFAULT 10,
         supplier TEXT,
+        isIntangible INTEGER DEFAULT 0,
+        soldByAmount INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`, (err) => {
         if (err) {
@@ -90,6 +93,21 @@ function createTables() {
           reject(err);
           return;
         }
+      });
+
+      // Add isIntangible column to existing products table if it doesn't exist
+      db.run(`ALTER TABLE products ADD COLUMN isIntangible INTEGER DEFAULT 0`, (err) => {
+        // Ignore error if column already exists
+      });
+
+      // Add marketPrice column to existing products table if it doesn't exist
+      db.run(`ALTER TABLE products ADD COLUMN marketPrice REAL`, (err) => {
+        // Ignore error if column already exists
+      });
+
+      // Add soldByAmount column to existing products table if it doesn't exist
+      db.run(`ALTER TABLE products ADD COLUMN soldByAmount INTEGER DEFAULT 0`, (err) => {
+        // Ignore error if column already exists
       });
 
       // Suppliers table

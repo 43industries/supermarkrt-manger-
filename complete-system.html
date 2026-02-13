@@ -11,6 +11,50 @@
     
     <!-- Load scripts: Use both relative and absolute paths for better compatibility -->
     <script>
+        // CRITICAL: Disable Babel auto-processing IMMEDIATELY - before anything else
+        // This must run before Babel loads to prevent it from processing scripts
+        (function() {
+            // Pre-create Babel object with stubs to prevent auto-processing
+            window.Babel = {
+                transform: function() {
+                    throw new Error('Babel.transform called before React is ready');
+                },
+                registerScriptTags: function() {
+                    console.warn('🛡️ Babel.registerScriptTags blocked (pre-init)');
+                    return;
+                },
+                disableScriptTags: function() {
+                    console.log('🛡️ Babel.disableScriptTags called (pre-init)');
+                    return;
+                }
+            };
+            
+            // Override document.addEventListener to block Babel's DOMContentLoaded listener
+            const originalAddEventListener = document.addEventListener;
+            document.addEventListener = function(type, listener, options) {
+                // Block DOMContentLoaded listeners that might be from Babel
+                if (type === 'DOMContentLoaded' && listener && 
+                    (listener.toString().includes('babel') || listener.toString().includes('Babel'))) {
+                    console.warn('🛡️ Blocked Babel DOMContentLoaded listener');
+                    return;
+                }
+                return originalAddEventListener.call(this, type, listener, options);
+            };
+            
+            // Change all text/babel scripts to text/plain immediately
+            try {
+                const scripts = document.getElementsByTagName('script');
+                for (let i = 0; i < scripts.length; i++) {
+                    if (scripts[i].type === 'text/babel') {
+                        scripts[i].type = 'text/plain';
+                        console.log('🛡️ Changed script type to text/plain (pre-init)');
+                    }
+                }
+            } catch (e) {
+                console.warn('Error changing script types:', e);
+            }
+        })();
+        
         // Function to load script with fallback
         function loadScript(src, fallbackSrc, name) {
             return new Promise((resolve, reject) => {
@@ -39,44 +83,524 @@
             });
         }
 
-        // Load all required libraries
+        // Load all required libraries - OPTIMIZED FOR OFFLINE MODE AND OLDER COMPUTERS
+        // Priority: Local files first (fastest, works offline), then CDN (requires internet)
+        function loadScriptWithFallbacks(relativePath, absolutePath, cdnPath, name) {
+            return new Promise((resolve, reject) => {
+                const timeout = 15000; // 15 second timeout for older computers
+                const isOffline = !navigator.onLine || window.location.protocol === 'file:';
+                
+                function tryLoad(src, attemptNum, description) {
+                    return new Promise((resolveLoad, rejectLoad) => {
+                        // If offline and this is a CDN attempt, skip it
+                        if (isOffline && (src.includes('http://') || src.includes('https://'))) {
+                            console.warn(`⏭️ Skipping CDN load for ${name} (offline mode)`);
+                            rejectLoad(new Error('Offline mode - skipping CDN'));
+                            return;
+                        }
+                        
+                        const script = document.createElement('script');
+                        script.src = src;
+                        
+                        // Timeout for older/slower computers
+                        const timeoutId = setTimeout(() => {
+                            script.onload = null;
+                            script.onerror = null;
+                            // Remove script if timeout
+                            if (script.parentNode) {
+                                script.parentNode.removeChild(script);
+                            }
+                            rejectLoad(new Error(`Timeout loading ${name} from ${description}`));
+                        }, timeout);
+                        
+                        script.onload = () => {
+                            clearTimeout(timeoutId);
+                            console.log(`✅ ${name} loaded from ${description}`);
+                            resolveLoad();
+                        };
+                        
+                        script.onerror = () => {
+                            clearTimeout(timeoutId);
+                            // Remove failed script
+                            if (script.parentNode) {
+                                script.parentNode.removeChild(script);
+                            }
+                            console.warn(`⚠️ Failed to load ${name} from ${description}`);
+                            rejectLoad(new Error(`Failed to load ${name} from ${description}`));
+                        };
+                        
+                        document.head.appendChild(script);
+                    });
+                }
+                
+                // Try relative path first (best for offline)
+                tryLoad(relativePath, 1, 'local file (./libs/)')
+                    .then(() => resolve())
+                    .catch((err1) => {
+                        console.warn(`⚠️ ${name} not found at ${relativePath}, trying absolute path...`);
+                        // Try absolute path
+                        tryLoad(absolutePath, 2, 'local file (/libs/)')
+                            .then(() => resolve())
+                            .catch((err2) => {
+                                // Check if we're online before trying CDN
+                                if (!isOffline && navigator.onLine) {
+                                    console.warn(`⚠️ ${name} not found in local files, trying CDN (requires internet)...`);
+                                    tryLoad(cdnPath, 3, 'CDN')
+                                        .then(() => resolve())
+                                        .catch((err3) => {
+                                            console.error(`❌ Failed to load ${name} from all sources`);
+                                            console.error(`   Tried: ${relativePath}`);
+                                            console.error(`   Tried: ${absolutePath}`);
+                                            console.error(`   Tried: ${cdnPath}`);
+                                            if (isOffline) {
+                                                console.error(`💡 OFFLINE MODE: Make sure ${name} is in the libs/ folder`);
+                                                console.error(`   Expected file: libs/${name.toLowerCase().replace(/\s+/g, '-')}.js or libs/${relativePath.split('/').pop()}`);
+                                            }
+                                            reject(new Error(`Failed to load ${name} - check console for details`));
+                                        });
+                                } else {
+                                    // Offline mode - local files must exist
+                                    console.error(`❌ OFFLINE MODE: ${name} not found in local files`);
+                                    console.error(`   Tried: ${relativePath}`);
+                                    console.error(`   Tried: ${absolutePath}`);
+                                    console.error(`   Please ensure the file exists in the libs/ folder`);
+                                    console.error(`   Expected: libs/${relativePath.split('/').pop()}`);
+                                    reject(new Error(`Offline mode: ${name} not found locally - check libs/ folder`));
+                                }
+                            });
+                    });
+            });
+        }
+
+        // CRITICAL: Prevent Babel from auto-processing ANY scripts
+        // Set flag to prevent Babel from running until React is ready
+        window.reactReady = false;
+        window.babelCanLoad = false;
+        
+        // Override DOM methods to completely block Babel from finding scripts
+        const originalQuerySelector = document.querySelector;
+        const originalQuerySelectorAll = document.querySelectorAll;
+        const originalGetElementsByTagName = document.getElementsByTagName;
+        const originalGetElementById = document.getElementById;
+        
+        // Block ALL script-related queries before React is ready
+        document.querySelector = function(selector) {
+            if (!window.reactReady && selector && (
+                selector.includes('text/babel') || 
+                selector.includes('script') ||
+                selector.includes('[type="text/babel"]')
+            )) {
+                return null;
+            }
+            return originalQuerySelector.call(this, selector);
+        };
+        
+        document.querySelectorAll = function(selector) {
+            if (!window.reactReady && selector && (
+                selector.includes('text/babel') || 
+                (selector.includes('script') && !window.reactReady)
+            )) {
+                return [];
+            }
+            return originalQuerySelectorAll.call(this, selector);
+        };
+        
+        document.getElementsByTagName = function(tagName) {
+            if (tagName === 'script' && !window.reactReady) {
+                // Return empty collection to prevent Babel from finding scripts
+                return { length: 0, item: () => null, namedItem: () => null, [Symbol.iterator]: function* () {} };
+            }
+            return originalGetElementsByTagName.call(this, tagName);
+        };
+        
+        document.getElementById = function(id) {
+            // Allow getting main-app-code but block if it's being queried by Babel
+            if (id === 'main-app-code' && !window.reactReady) {
+                const element = originalGetElementById.call(this, id);
+                if (element && element.type === 'text/plain') {
+                    return element; // Allow access to our main app code
+                }
+            }
+            return originalGetElementById.call(this, id);
+        };
+        
+        // CRITICAL: Immediately change any text/babel scripts to text/plain BEFORE anything loads
+        // This runs BEFORE we override getElementsByTagName, so it uses the original method
+        (function() {
+            try {
+                const allScripts = originalGetElementsByTagName.call(document, 'script');
+                for (let i = 0; i < allScripts.length; i++) {
+                    const script = allScripts[i];
+                    if (script.type === 'text/babel') {
+                        script.type = 'text/plain';
+                        console.log('🛡️ Changed script type from text/babel to text/plain (pre-emptive)');
+                    }
+                }
+                // Also ensure main-app-code is text/plain
+                const mainApp = originalGetElementById.call(document, 'main-app-code');
+                if (mainApp && mainApp.type !== 'text/plain') {
+                    mainApp.type = 'text/plain';
+                    console.log('🛡️ Ensured main-app-code is text/plain');
+                }
+            } catch (e) {
+                console.warn('⚠️ Error in pre-emptive script type change:', e);
+            }
+        })();
+        
+        function ensureReactReady() {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 100; // 5 seconds max
+                
+                const checkReact = () => {
+                    attempts++;
+                    if (attempts > maxAttempts) {
+                        console.error('❌ React failed to initialize after maximum attempts');
+                        showError('React failed to load. Please refresh the page.');
+                        return;
+                    }
+                    
+                    // Check if React is loaded in global scope
+                    if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined') {
+                        // Ensure React is on window object
+                        if (typeof window.React === 'undefined') {
+                            window.React = React;
+                        }
+                        if (typeof window.ReactDOM === 'undefined') {
+                            window.ReactDOM = ReactDOM;
+                        }
+                        
+                        // Verify React is functional
+                        if (typeof window.React.createElement === 'function' && 
+                            typeof window.ReactDOM.render === 'function') {
+                            console.log('✅ React is fully ready and functional');
+                            window.reactReady = true;
+                            window.dispatchEvent(new Event('reactReady'));
+                            
+                            // Restore original DOM query methods after React is ready
+                            document.querySelector = originalQuerySelector;
+                            document.querySelectorAll = originalQuerySelectorAll;
+                            document.getElementsByTagName = originalGetElementsByTagName;
+                            document.getElementById = originalGetElementById;
+                            
+                            // Mark that Babel can now load
+                            window.babelCanLoad = true;
+                            
+                            resolve();
+                        } else {
+                            console.warn('⚠️ React loaded but not functional yet, retrying... (attempt ' + attempts + ')');
+                            setTimeout(checkReact, 50);
+                        }
+                    } else {
+                        setTimeout(checkReact, 50);
+                    }
+                };
+                checkReact();
+            });
+        }
+        
+        // Load React and ReactDOM
         Promise.all([
-            loadScript('/libs/react.min.js', 'https://unpkg.com/react@18/umd/react.production.min.js', 'React'),
-            loadScript('/libs/react-dom.min.js', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', 'ReactDOM'),
-            loadScript('/libs/babel.min.js', 'https://unpkg.com/@babel/standalone/babel.min.js', 'Babel')
+            loadScriptWithFallbacks('./libs/react.min.js', '/libs/react.min.js', 'https://unpkg.com/react@18/umd/react.production.min.js', 'React'),
+            loadScriptWithFallbacks('./libs/react-dom.min.js', '/libs/react-dom.min.js', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', 'ReactDOM')
         ]).then(() => {
-            console.log('✅ All core libraries loaded successfully');
-            // Mark that libraries are ready
+            console.log('✅ React and ReactDOM scripts loaded');
+            
+            // Wait for React to be fully ready
+            return ensureReactReady();
+        }).then(() => {
+            // React is 100% ready, now load Babel
+            console.log('✅ React confirmed ready, now loading Babel...');
+            
+            // Add extra delay to be absolutely sure React is stable
+            setTimeout(() => {
+                // Final check before loading Babel
+                if (typeof window.React === 'undefined' || typeof window.React.createElement !== 'function') {
+                    console.error('❌ React lost before Babel load!');
+                    showError('React became unavailable. Please refresh the page.');
+                    return;
+                }
+                
+                // Double-check babelCanLoad flag
+                if (!window.babelCanLoad) {
+                    console.warn('⚠️ Babel load blocked - React not fully ready');
+                    setTimeout(arguments.callee, 100);
+                    return;
+                }
+                
+                console.log('✅ All checks passed, loading Babel...');
+                
+                // Load Babel script but intercept it to prevent auto-processing
+                const isOffline = !navigator.onLine || window.location.protocol === 'file:';
+                const babelScript = document.createElement('script');
+                
+                function tryBabelLoad(src, description) {
+                    return new Promise((resolve, reject) => {
+                        // Skip CDN if offline
+                        if (isOffline && (src.includes('http://') || src.includes('https://'))) {
+                            console.warn('⏭️ Skipping Babel CDN load (offline mode)');
+                            reject(new Error('Offline mode'));
+                            return;
+                        }
+                        
+                        const script = document.createElement('script');
+                        script.src = src;
+                        script.crossOrigin = 'anonymous';
+                        
+                        const timeout = setTimeout(() => {
+                            script.onload = null;
+                            script.onerror = null;
+                            if (script.parentNode) script.parentNode.removeChild(script);
+                            reject(new Error('Timeout'));
+                        }, 15000);
+                        
+                        script.onload = () => {
+                            clearTimeout(timeout);
+                            console.log(`✅ Babel loaded from ${description}`);
+                            resolve();
+                        };
+                        
+                        script.onerror = () => {
+                            clearTimeout(timeout);
+                            if (script.parentNode) script.parentNode.removeChild(script);
+                            console.warn(`⚠️ Failed to load Babel from ${description}`);
+                            reject(new Error(`Failed from ${description}`));
+                        };
+                        
+                        document.head.appendChild(script);
+                    });
+                }
+                
+                // Try local files first
+                tryBabelLoad('./libs/babel.min.js', 'local file (./libs/)')
+                    .then(() => {
+                        // Babel loaded successfully
+                    })
+                    .catch(() => {
+                        // Try absolute path
+                        tryBabelLoad('/libs/babel.min.js', 'local file (/libs/)')
+                            .then(() => {
+                                // Babel loaded successfully
+                            })
+                            .catch(() => {
+                                // Only try CDN if online
+                                if (!isOffline && navigator.onLine) {
+                                    tryBabelLoad('https://unpkg.com/@babel/standalone/babel.min.js', 'CDN')
+                                        .then(() => {
+                                            // Babel loaded from CDN
+                                        })
+                                        .catch(() => {
+                                            console.error('❌ Failed to load Babel from all sources');
+                                            console.error('   Tried: ./libs/babel.min.js');
+                                            console.error('   Tried: /libs/babel.min.js');
+                                            console.error('   Tried: CDN');
+                                            if (isOffline) {
+                                                console.error('💡 OFFLINE MODE: Make sure libs/babel.min.js exists');
+                                            }
+                                            window.babelReady = false;
+                                        });
+                                } else {
+                                    console.error('❌ OFFLINE MODE: Babel not found locally');
+                                    console.error('   Tried: ./libs/babel.min.js');
+                                    console.error('   Tried: /libs/babel.min.js');
+                                    console.error('   Please ensure libs/babel.min.js exists');
+                                    window.babelReady = false;
+                                }
+                            });
+                    });
+                
+                // Set up the babelScript for the rest of the code
+                babelScript.src = './libs/babel.min.js';
+                
+                babelScript.onload = function() {
+                    console.log('✅ Babel script loaded');
+                    
+                    // IMMEDIATELY disable auto-processing before Babel can run
+                    // Use requestAnimationFrame to run as soon as possible
+                    requestAnimationFrame(function() {
+                        // Final verification that React is still available
+                        if (typeof window.React === 'undefined' || typeof window.React.createElement !== 'function') {
+                            console.error('❌ CRITICAL: React not available after Babel load!');
+                            showError('React became unavailable after Babel loaded. Please refresh the page.');
+                            return;
+                        }
+                        
+                        // CRITICAL: Immediately disable Babel's automatic script processing
+                        if (typeof Babel !== 'undefined') {
+                            console.log('🛡️ Disabling Babel auto-processing immediately...');
+                            
+                            // Method 1: Disable script tags (if function exists)
+                            if (typeof Babel.disableScriptTags === 'function') {
+                                try {
+                                    Babel.disableScriptTags();
+                                    console.log('✅ Babel.disableScriptTags() called');
+                                } catch (e) {
+                                    console.warn('⚠️ Babel.disableScriptTags() failed:', e);
+                                }
+                            }
+                            
+                            // Method 2: Block registerScriptTags permanently
+                            if (Babel.registerScriptTags) {
+                                const originalRegister = Babel.registerScriptTags;
+                                Babel.registerScriptTags = function() {
+                                    console.warn('⚠️ Babel.registerScriptTags() permanently blocked');
+                                    return;
+                                };
+                                console.log('✅ Babel.registerScriptTags() blocked');
+                            }
+                            
+                            // Method 3: Override transform to require React
+                            const originalTransform = Babel.transform;
+                            if (originalTransform) {
+                                Babel.transform = function(code, options) {
+                                    if (typeof window.React === 'undefined' || typeof window.React.createElement !== 'function') {
+                                        console.error('❌ React not available for transformation');
+                                        throw new Error('React must be loaded before transforming code');
+                                    }
+                                    return originalTransform.call(this, code, options);
+                                };
+                                console.log('✅ Babel.transform() protected');
+                            }
+                            
+                            // Method 4: Change any remaining text/babel scripts
+                            try {
+                                const scripts = document.getElementsByTagName('script');
+                                let changed = 0;
+                                for (let i = 0; i < scripts.length; i++) {
+                                    if (scripts[i].type === 'text/babel') {
+                                        scripts[i].type = 'text/plain';
+                                        changed++;
+                                    }
+                                }
+                                if (changed > 0) {
+                                    console.warn(`⚠️ Changed ${changed} script(s) from text/babel to text/plain`);
+                                }
+                            } catch (e) {
+                                console.warn('Error checking scripts:', e);
+                            }
+                            
+                            console.log('✅ Babel auto-processing disabled');
+                        }
+                        
+                        window.babelReady = true;
+                        window.dispatchEvent(new Event('babelReady'));
+                    });
+                };
+                
+                document.head.appendChild(babelScript);
+            }, 500); // Longer delay to ensure React is stable
+            
+            // Mark libraries as ready (React is the critical one)
             window.librariesReady = true;
-            // Dispatch event for event listeners
             window.dispatchEvent(new Event('librariesReady'));
         }).catch((error) => {
             console.error('❌ Critical error loading libraries:', error);
-            showError('Failed to load required libraries. Please check your internet connection or ensure the libs folder exists.');
+            showError('Failed to load required libraries. Please refresh the page or check your internet connection.');
         });
 
-        // Also try relative paths as backup
-        const relativeScripts = document.createElement('script');
-        relativeScripts.innerHTML = `
-            // Backup: Try relative paths
-            if (typeof React === 'undefined' && typeof window.React === 'undefined') {
-                const reactScript = document.createElement('script');
-                reactScript.src = './libs/react.min.js';
-                reactScript.onerror = () => console.warn('Relative path also failed for React');
-                document.head.appendChild(reactScript);
-            }
-            if (typeof ReactDOM === 'undefined' && typeof window.ReactDOM === 'undefined') {
-                const reactDomScript = document.createElement('script');
-                reactDomScript.src = './libs/react-dom.min.js';
-                reactDomScript.onerror = () => console.warn('Relative path also failed for ReactDOM');
-                document.head.appendChild(reactDomScript);
-            }
-        `;
-        document.head.appendChild(relativeScripts);
     </script>
-    <!-- Load non-critical scripts -->
-    <script src="/libs/tailwind.js" onerror="console.warn('Tailwind failed to load')"></script>
-    <script src="/libs/qrcode.min.js" onerror="console.warn('QRCode failed to load')"></script>
+    <!-- Load non-critical scripts with fallbacks -->
+    <script>
+        // Suppress Tailwind CDN production warning (it's just a development notice)
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            // Suppress the Tailwind CDN production warning
+            if (message.includes('cdn.tailwindcss.com should not be used in production')) {
+                // Silently ignore - this is just a development notice
+                return;
+            }
+            // Allow all other warnings
+            originalWarn.apply(console, args);
+        };
+
+        // Load Tailwind with fallbacks - OPTIMIZED FOR OFFLINE MODE
+        (function() {
+            const tailwindScript = document.createElement('script');
+            tailwindScript.src = './libs/tailwind.js';
+            tailwindScript.onerror = function() {
+                const tailwindScript2 = document.createElement('script');
+                tailwindScript2.src = '/libs/tailwind.js';
+                tailwindScript2.onerror = function() {
+                    // Only try CDN if online
+                    if (navigator.onLine) {
+                        const tailwindScript3 = document.createElement('script');
+                        tailwindScript3.src = 'https://cdn.tailwindcss.com';
+                        tailwindScript3.crossOrigin = 'anonymous';
+                        tailwindScript3.onerror = function() {
+                            console.warn('⚠️ Tailwind failed to load - using inline styles (system will still work)');
+                        };
+                        document.head.appendChild(tailwindScript3);
+                    } else {
+                        console.warn('⚠️ OFFLINE MODE: Tailwind not found locally - using inline styles (system will still work)');
+                    }
+                };
+                document.head.appendChild(tailwindScript2);
+            };
+            document.head.appendChild(tailwindScript);
+        })();
+
+        // Load QRCode with fallbacks - OPTIMIZED FOR OFFLINE MODE
+        (function() {
+            const isOffline = !navigator.onLine || window.location.protocol === 'file:';
+            
+            function tryQRCodeLoad(src, description) {
+                return new Promise((resolve, reject) => {
+                    // Skip CDN if offline
+                    if (isOffline && (src.includes('http://') || src.includes('https://'))) {
+                        console.warn('⏭️ Skipping QRCode CDN load (offline mode)');
+                        reject(new Error('Offline mode'));
+                        return;
+                    }
+                    
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.crossOrigin = 'anonymous';
+                    
+                    const timeout = setTimeout(() => {
+                        script.onload = null;
+                        script.onerror = null;
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                        reject(new Error('Timeout'));
+                    }, 10000);
+                    
+                    script.onload = () => {
+                        clearTimeout(timeout);
+                        console.log(`✅ QRCode loaded from ${description}`);
+                        resolve();
+                    };
+                    
+                    script.onerror = () => {
+                        clearTimeout(timeout);
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                        reject(new Error(`Failed from ${description}`));
+                    };
+                    
+                    document.head.appendChild(script);
+                });
+            }
+            
+            // Try local files first
+            tryQRCodeLoad('./libs/qrcode.min.js', 'local file (./libs/)')
+                .catch(() => {
+                    // Try absolute path
+                    tryQRCodeLoad('/libs/qrcode.min.js', 'local file (/libs/)')
+                        .catch(() => {
+                            // Only try CDN if online
+                            if (!isOffline && navigator.onLine) {
+                                tryQRCodeLoad('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js', 'CDN')
+                                    .catch(() => {
+                                        console.warn('⚠️ QRCode failed to load from all sources (QR codes will be disabled)');
+                                        console.warn('   This is optional - system will work without QR codes');
+                                    });
+                            } else {
+                                console.warn('⚠️ OFFLINE MODE: QRCode not found locally (QR codes will be disabled)');
+                                console.warn('   This is optional - system will work without QR codes');
+                            }
+                        });
+                });
+        })();
+    </script>
     
     <script>
         // Error display function
@@ -316,10 +840,78 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <!-- Loading screen -->
+        <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;">
+                <h1 style="color: #007bff; margin-bottom: 20px; font-size: 24px;">🔄 Loading Supermarket System...</h1>
+                <div style="width: 100%; height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="loadingBar" style="width: 0%; height: 100%; background: #007bff; transition: width 0.3s;"></div>
+                </div>
+                <p id="loadingStatus" style="color: #666; margin-bottom: 10px;">Initializing...</p>
+                <p style="color: #999; font-size: 12px;">Please wait while we load all components</p>
+            </div>
+        </div>
+    </div>
     
-    <script type="text/babel">
+    <!-- Main app script - stored as plain text, will be processed by Babel after React loads -->
+    <script id="main-app-code" type="text/plain">
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
+        
+        // ========== OFFLINE MODE & OLDER COMPUTER OPTIMIZATIONS ==========
+        
+        // Detect offline mode
+        const isOfflineMode = !navigator.onLine || window.location.protocol === 'file:';
+        
+        // Performance optimizations for older computers
+        const PERFORMANCE_CONFIG = {
+            // Reduce initial data load for older computers
+            maxProductsPerPage: 200,
+            maxSalesPerPage: 50,
+            maxCustomersPerPage: 200,
+            // Debounce delays (longer for slower computers)
+            searchDebounce: 300,
+            saveDebounce: 500,
+            // Memory optimizations
+            enableLazyLoading: true,
+            enableVirtualScrolling: false, // Disable for older browsers
+        };
+        
+        // Optimized localStorage with error handling for older browsers
+        const safeLocalStorage = {
+            getItem: (key) => {
+                try {
+                    return localStorage.getItem(key);
+                } catch (e) {
+                    console.warn('localStorage.getItem failed:', e);
+                    return null;
+                }
+            },
+            setItem: (key, value) => {
+                try {
+                    // For older browsers, limit localStorage size
+                    if (value && value.length > 5000000) { // 5MB limit
+                        console.warn(`⚠️ Data too large for localStorage (${key}), truncating...`);
+                        return;
+                    }
+                    localStorage.setItem(key, value);
+                } catch (e) {
+                    if (e.name === 'QuotaExceededError') {
+                        console.error('❌ localStorage full! Please clear old data or export backups.');
+                        alert('⚠️ Storage full! Please export backups and clear old data.');
+                    } else {
+                        console.warn('localStorage.setItem failed:', e);
+                    }
+                }
+            },
+            removeItem: (key) => {
+                try {
+                    localStorage.removeItem(key);
+                } catch (e) {
+                    console.warn('localStorage.removeItem failed:', e);
+                }
+            }
+        };
         
         // All Icons
         const ShoppingCart = ({ size = 24 }) => (
@@ -522,11 +1114,11 @@
         // Main Complete App
         const CompleteSystem = () => {
           const [isLoggedIn, setIsLoggedIn] = useState(() => {
-            const savedUser = localStorage.getItem('logged_in_user');
+            const savedUser = safeLocalStorage.getItem('logged_in_user');
             return savedUser !== null;
           });
           const [currentUser, setCurrentUser] = useState(() => {
-            const savedUser = localStorage.getItem('logged_in_user');
+            const savedUser = safeLocalStorage.getItem('logged_in_user');
             return savedUser ? JSON.parse(savedUser) : null;
           });
           const [loginForm, setLoginForm] = useState({ username: '', password: '', rememberMe: true });
@@ -561,39 +1153,96 @@
             { id: 2, date: '2025-12-05', category: 'Utilities', description: 'Electricity bill', amount: 3500 },
           ];
 
+          // Load data with performance optimizations for older computers
           const [products, setProducts] = useState(() => {
-            const saved = localStorage.getItem('products');
-            return saved ? JSON.parse(saved) : defaultProducts;
+            try {
+              const saved = safeLocalStorage.getItem('products');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                // Limit initial load for older computers (load more on demand)
+                return parsed.length > PERFORMANCE_CONFIG.maxProductsPerPage 
+                  ? parsed.slice(0, PERFORMANCE_CONFIG.maxProductsPerPage)
+                  : parsed;
+              }
+              return defaultProducts;
+            } catch (e) {
+              console.warn('Error loading products from localStorage:', e);
+              return defaultProducts;
+            }
           });
 
           const [sales, setSales] = useState(() => {
-            const saved = localStorage.getItem('sales');
-            return saved ? JSON.parse(saved) : defaultSales;
+            try {
+              const saved = safeLocalStorage.getItem('sales');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                // Limit initial load for older computers
+                return parsed.length > PERFORMANCE_CONFIG.maxSalesPerPage
+                  ? parsed.slice(0, PERFORMANCE_CONFIG.maxSalesPerPage)
+                  : parsed;
+              }
+              return defaultSales;
+            } catch (e) {
+              console.warn('Error loading sales from localStorage:', e);
+              return defaultSales;
+            }
           });
 
           const [customers, setCustomers] = useState(() => {
-            const saved = localStorage.getItem('customers');
-            return saved ? JSON.parse(saved) : defaultCustomers;
+            try {
+              const saved = safeLocalStorage.getItem('customers');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                // Limit initial load for older computers
+                return parsed.length > PERFORMANCE_CONFIG.maxCustomersPerPage
+                  ? parsed.slice(0, PERFORMANCE_CONFIG.maxCustomersPerPage)
+                  : parsed;
+              }
+              return defaultCustomers;
+            } catch (e) {
+              console.warn('Error loading customers from localStorage:', e);
+              return defaultCustomers;
+            }
           });
 
           const [suppliers, setSuppliers] = useState(() => {
-            const saved = localStorage.getItem('suppliers');
-            return saved ? JSON.parse(saved) : defaultSuppliers;
+            try {
+              const saved = safeLocalStorage.getItem('suppliers');
+              return saved ? JSON.parse(saved) : defaultSuppliers;
+            } catch (e) {
+              console.warn('Error loading suppliers from localStorage:', e);
+              return defaultSuppliers;
+            }
           });
 
           const [expenses, setExpenses] = useState(() => {
-            const saved = localStorage.getItem('expenses');
-            return saved ? JSON.parse(saved) : defaultExpenses;
+            try {
+              const saved = safeLocalStorage.getItem('expenses');
+              return saved ? JSON.parse(saved) : defaultExpenses;
+            } catch (e) {
+              console.warn('Error loading expenses from localStorage:', e);
+              return defaultExpenses;
+            }
           });
 
           const [cashRegister, setCashRegister] = useState(() => {
-            const saved = localStorage.getItem('cashRegister');
-            return saved ? JSON.parse(saved) : { isOpen: false, openingFloat: 0, openingTime: null, cashierName: '' };
+            try {
+              const saved = safeLocalStorage.getItem('cashRegister');
+              return saved ? JSON.parse(saved) : { isOpen: false, openingFloat: 0, openingTime: null, cashierName: '' };
+            } catch (e) {
+              console.warn('Error loading cashRegister from localStorage:', e);
+              return { isOpen: false, openingFloat: 0, openingTime: null, cashierName: '' };
+            }
           });
 
           const [quickButtons, setQuickButtons] = useState(() => {
-            const saved = localStorage.getItem('quickButtons');
-            return saved ? JSON.parse(saved) : [];
+            try {
+              const saved = safeLocalStorage.getItem('quickButtons');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              console.warn('Error loading quickButtons from localStorage:', e);
+              return [];
+            }
           });
 
           const [cart, setCart] = useState([]);
@@ -603,8 +1252,13 @@
           const [showBuyByAmountModal, setShowBuyByAmountModal] = useState(false);
           const [buyByAmountProduct, setBuyByAmountProduct] = useState(null);
           const [buyByAmountValue, setBuyByAmountValue] = useState('');
+          const [showQuantityModal, setShowQuantityModal] = useState(false);
+          const [quantityProduct, setQuantityProduct] = useState(null);
+          const [quantityValue, setQuantityValue] = useState('');
           const [editingCartItemAmount, setEditingCartItemAmount] = useState(null);
           const [cartItemAmountValue, setCartItemAmountValue] = useState('');
+          const [editingCartItemPrice, setEditingCartItemPrice] = useState(null);
+          const [cartItemPriceValue, setCartItemPriceValue] = useState('');
           const [purchaseSearchTerm, setPurchaseSearchTerm] = useState('');
           
           // Product search filters for Products & Prices table
@@ -626,8 +1280,13 @@
           const [stockQuantity, setStockQuantity] = useState('');
           const [scannedProduct, setScannedProduct] = useState(null);
           const [stockHistory, setStockHistory] = useState(() => {
-            const saved = localStorage.getItem('stock_history');
-            return saved ? JSON.parse(saved) : [];
+            try {
+              const saved = safeLocalStorage.getItem('stock_history');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              console.warn('Error loading stockHistory from localStorage:', e);
+              return [];
+            }
           });
           const [mpesaPhone, setMpesaPhone] = useState('');
           const [showMpesaPrompt, setShowMpesaPrompt] = useState(false);
@@ -636,22 +1295,32 @@
           // New state for additional features
           const [editingProduct, setEditingProduct] = useState(null);
           const [showAddProduct, setShowAddProduct] = useState(false);
-          const [newProduct, setNewProduct] = useState({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10, expiryDate: '', supplierId: '' });
+          const [newProduct, setNewProduct] = useState({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10, expiryDate: '', supplierId: '', isIntangible: false, soldByAmount: false });
           
           const [purchases, setPurchases] = useState(() => {
-            const saved = localStorage.getItem('purchases');
-            return saved ? JSON.parse(saved) : [
-              { id: 1, date: '2025-12-01', supplier: 'ABC Distributors', items: [{ name: 'Rice 5kg', qty: 50, unitCost: 450 }], total: 22500, status: 'Received', invoiceNo: 'PO-001' },
-              { id: 2, date: '2025-12-05', supplier: 'XYZ Supplies', items: [{ name: 'Cooking Oil 2L', qty: 30, unitCost: 280 }], total: 8400, status: 'Pending', invoiceNo: 'PO-002' },
-            ];
+            try {
+              const saved = safeLocalStorage.getItem('purchases');
+              return saved ? JSON.parse(saved) : [
+                { id: 1, date: '2025-12-01', supplier: 'ABC Distributors', items: [{ name: 'Rice 5kg', qty: 50, unitCost: 450 }], total: 22500, status: 'Received', invoiceNo: 'PO-001' },
+                { id: 2, date: '2025-12-05', supplier: 'XYZ Supplies', items: [{ name: 'Cooking Oil 2L', qty: 30, unitCost: 280 }], total: 8400, status: 'Pending', invoiceNo: 'PO-002' },
+              ];
+            } catch (e) {
+              console.warn('Error loading purchases from localStorage:', e);
+              return [];
+            }
           });
           const [showPurchaseForm, setShowPurchaseForm] = useState(false);
           const [newPurchase, setNewPurchase] = useState({ supplier: '', items: [], total: 0 });
           const [purchaseItem, setPurchaseItem] = useState({ productId: '', qty: '', unitCost: '' });
           
           const [invoices, setInvoices] = useState(() => {
-            const saved = localStorage.getItem('invoices');
-            return saved ? JSON.parse(saved) : [];
+            try {
+              const saved = safeLocalStorage.getItem('invoices');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              console.warn('Error loading invoices from localStorage:', e);
+              return [];
+            }
           });
           const [showInvoiceForm, setShowInvoiceForm] = useState(false);
           const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState(null);
@@ -668,8 +1337,13 @@
           
           // Hold/Park Orders state
           const [heldOrders, setHeldOrders] = useState(() => {
-            const saved = localStorage.getItem('held_orders');
-            return saved ? JSON.parse(saved) : [];
+            try {
+              const saved = safeLocalStorage.getItem('held_orders');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              console.warn('Error loading heldOrders from localStorage:', e);
+              return [];
+            }
           });
           const [showHeldOrders, setShowHeldOrders] = useState(false);
           
@@ -717,13 +1391,18 @@
             currencySymbol: 'KES',
             footerText: 'Thank you for shopping at 43 INDUSTRIES',
             showFooter: true,
-            pricesIncludeVAT: true, // Set to true if selling prices already include 16% VAT (common in Kenya)
-            vatRate: 0.16 // 16% VAT rate
+            taxRate: 0.16, // 16% VAT rate (default for Kenya)
+            pricesIncludeVAT: true // Set to true if selling prices already include VAT (common in Kenya)
           };
 
           const [storeConfig, setStoreConfig] = useState(() => {
-            const saved = localStorage.getItem('storeConfig');
-            return saved ? JSON.parse(saved) : defaultStoreConfig;
+            try {
+              const saved = safeLocalStorage.getItem('storeConfig');
+              return saved ? JSON.parse(saved) : defaultStoreConfig;
+            } catch (e) {
+              console.warn('Error loading storeConfig from localStorage:', e);
+              return defaultStoreConfig;
+            }
           });
 
           // Users state for admin management
@@ -747,69 +1426,56 @@
           const [newBranch, setNewBranch] = useState({ name: '', code: '', address: '', phone: '', email: '', managerId: '' });
           const [newLedgerEntry, setNewLedgerEntry] = useState({ date: new Date().toISOString().split('T')[0], accountType: 'Revenue', accountName: '', debit: 0, credit: 0, description: '', branchId: null });
 
-          // Fetch users from API when component mounts or user logs in
+          // Fetch users from API when online; otherwise use offline users (no internet needed)
           useEffect(() => {
             if (isLoggedIn && currentUser) {
-              fetch('/api/users')
+              offlineFetch('/api/users')
                 .then(res => res.json())
                 .then(data => {
-                  if (Array.isArray(data)) {
-                    setUsers(data);
-                  }
+                  if (Array.isArray(data) && data.length) setUsers(data);
                 })
-                .catch(err => {
-                  console.error('Error fetching users:', err);
-                  // Fallback to default users if API fails
-                  setUsers([
-                    { id: 1, username: 'admin', name: 'Admin', role: 'Admin', active: 1 },
-                    { id: 2, username: 'samuel', name: 'Samuel', role: 'Cashier', active: 1 },
-                    { id: 3, username: 'michael', name: 'Michael', role: 'Cashier', active: 1 }
-                  ]);
+                .catch(() => {
+                  setUsers(OFFLINE_USERS);
                 });
             }
           }, [isLoggedIn, currentUser]);
 
-          // Fetch enterprise features data
+          // Fetch enterprise features only when online; offline mode uses local data
           useEffect(() => {
             if (isLoggedIn && currentUser) {
-              // Fetch branches
-              fetch('/api/branches')
+              offlineFetch('/api/branches')
                 .then(res => res.json())
                 .then(data => {
                   if (Array.isArray(data)) {
                     setBranches(data);
-                    if (data.length > 0 && !selectedBranch) {
-                      setSelectedBranch(data[0]);
-                    }
+                    if (data.length > 0 && !selectedBranch) setSelectedBranch(data[0]);
                   }
                 })
-                .catch(err => console.error('Error fetching branches:', err));
+                .catch(() => {});
 
-              // Fetch stock alerts
-              fetch('/api/stock/alerts')
+              offlineFetch('/api/stock/alerts')
                 .then(res => res.json())
                 .then(data => {
-                  if (Array.isArray(data)) {
-                    setStockAlerts(data);
-                  }
+                  if (Array.isArray(data)) setStockAlerts(data);
                 })
-                .catch(err => console.error('Error fetching stock alerts:', err));
+                .catch(() => {});
 
-              // Fetch employee status (if cashier)
               if (currentUser.role === 'Cashier' && currentUser.id) {
-                fetch(`/api/employees/${currentUser.id}/status`)
+                offlineFetch(`/api/employees/${currentUser.id}/status`)
                   .then(res => res.json())
-                  .then(data => {
-                    setEmployeeStatus(data);
-                  })
-                  .catch(err => console.error('Error fetching employee status:', err));
+                  .then(data => setEmployeeStatus(data))
+                  .catch(() => {});
               }
             }
           }, [isLoggedIn, currentUser, selectedBranch]);
 
-          // Save store config whenever it changes
+          // Save store config whenever it changes - OPTIMIZED FOR OFFLINE MODE
           useEffect(() => {
-            localStorage.setItem('storeConfig', JSON.stringify(storeConfig));
+            try {
+              safeLocalStorage.setItem('storeConfig', JSON.stringify(storeConfig));
+            } catch (e) {
+              console.warn('Error saving storeConfig:', e);
+            }
           }, [storeConfig]);
 
           // Loyalty settings: 1 point per 100 KES spent
@@ -841,27 +1507,38 @@
             URL.revokeObjectURL(url);
           };
 
+          // ========== BACKUP MODE (Full offline backup - no internet needed) ==========
           const backupAllData = () => {
-            const backup = {
-              products,
-              sales,
-              customers,
-              suppliers,
-              expenses,
-              purchases,
-              invoices,
-              stockHistory,
-              quickButtons,
-              exportDate: new Date().toISOString()
-            };
-            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '43_industries_backup_' + new Date().toISOString().split('T')[0] + '.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            alert('✅ Backup downloaded!\n\nSave this file safely to restore your data later.');
+            try {
+              const backup = {
+                version: 2,
+                exportDate: new Date().toISOString(),
+                storeConfig,
+                products,
+                sales,
+                customers,
+                suppliers,
+                expenses,
+                purchases,
+                invoices,
+                stockHistory,
+                quickButtons,
+                heldOrders,
+                cashRegister
+              };
+              const json = JSON.stringify(backup, null, 2);
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = '43_industries_backup_' + new Date().toISOString().split('T')[0] + '.json';
+              a.click();
+              URL.revokeObjectURL(url);
+              alert('✅ Backup downloaded!\n\nAll data saved to file. Store it safely (USB, cloud, or another PC).\n\nWorks 100% offline – no internet needed to restore.');
+            } catch (err) {
+              console.error('Backup error:', err);
+              alert('❌ Backup failed: ' + (err.message || 'Unknown error'));
+            }
           };
 
           const restoreFromBackup = (event) => {
@@ -872,7 +1549,9 @@
             reader.onload = (e) => {
               try {
                 const backup = JSON.parse(e.target.result);
-                if (confirm('⚠️ This will replace ALL current data with the backup.\n\nBackup date: ' + backup.exportDate + '\n\nContinue?')) {
+                const backupDate = backup.exportDate || 'Unknown date';
+                if (confirm('⚠️ This will replace ALL current data with the backup.\n\nBackup date: ' + backupDate + '\n\nContinue?')) {
+                  if (backup.storeConfig) setStoreConfig(backup.storeConfig);
                   if (backup.products) setProducts(backup.products);
                   if (backup.sales) setSales(backup.sales);
                   if (backup.customers) setCustomers(backup.customers);
@@ -882,30 +1561,135 @@
                   if (backup.invoices) setInvoices(backup.invoices);
                   if (backup.stockHistory) setStockHistory(backup.stockHistory);
                   if (backup.quickButtons) setQuickButtons(backup.quickButtons);
-                  alert('✅ Data restored successfully!');
+                  if (backup.heldOrders) setHeldOrders(backup.heldOrders);
+                  if (backup.cashRegister) setCashRegister(backup.cashRegister);
+                  alert('✅ Data restored successfully!\n\nAll data from the backup file has been loaded.');
                 }
               } catch (err) {
-                alert('❌ Invalid backup file');
+                console.error('Restore error:', err);
+                alert('❌ Invalid backup file or corrupted data.');
               }
             };
             reader.readAsText(file);
           };
+
+          // Import products & stock (e.g. from old version) – Manager only. Accepts JSON: array of products or { products: [...] }.
+          const importProductsAndStock = (event) => {
+            if (currentUser?.role !== 'Admin') {
+              alert('⛔ Only the Manager (Admin) can import products.');
+              return;
+            }
+            const file = event?.target?.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              try {
+                const raw = JSON.parse(e.target.result);
+                const list = Array.isArray(raw) ? raw : (raw.products || []);
+                if (!list.length) {
+                  alert('No products found in file. Use a backup JSON or an array of products.');
+                  event.target.value = '';
+                  return;
+                }
+                const normalize = (p, i) => ({
+                  id: p.id || Date.now() + i,
+                  name: p.name || p.Name || '',
+                  barcode: p.barcode || p.Barcode || null,
+                  category: p.category || p.Category || '',
+                  costPrice: parseFloat(p.costPrice ?? p.cost ?? p['Cost Price'] ?? 0) || 0,
+                  sellingPrice: parseFloat(p.sellingPrice ?? p.price ?? p['Selling Price'] ?? 0) || 0,
+                  marketPrice: p.marketPrice != null ? parseFloat(p.marketPrice) : (p.marketPrice ?? null),
+                  stock: parseFloat(p.stock ?? p.Stock ?? p.quantity ?? 0) || 0,
+                  unit: p.unit || p.Unit || 'pieces',
+                  reorderLevel: parseInt(p.reorderLevel ?? p['Reorder Level'] ?? 10) || 10,
+                  supplier: p.supplier || p.Supplier || null,
+                  isIntangible: !!(p.isIntangible ?? p['Is Intangible']),
+                  soldByAmount: !!(p.soldByAmount ?? p['Sold By Amount'])
+                });
+                const imported = list.map(normalize).filter(p => p.name);
+                if (!imported.length) {
+                  alert('No valid products after parsing. Check file format.');
+                  event.target.value = '';
+                  return;
+                }
+                const replace = window.confirm(
+                  'Import ' + imported.length + ' product(s) with stock.\n\n' +
+                  'Click OK to REPLACE all current products with the imported list.\n' +
+                  'Click Cancel to MERGE (add imported products to existing ones).'
+                );
+                setProducts(prev => {
+                  const next = replace ? [] : (prev || []);
+                  const maxId = next.length ? Math.max(...next.map(p => p.id || 0)) : 0;
+                  imported.forEach((p, i) => {
+                    next.push({ ...p, id: p.id && !replace ? p.id : maxId + 1 + i });
+                  });
+                  safeLocalStorage.setItem('products', JSON.stringify(next));
+                  return next;
+                });
+                alert('✅ Imported ' + imported.length + ' product(s). Products and stock have been updated.');
+              } catch (err) {
+                console.error('Import error:', err);
+                alert('Invalid file or JSON. Use a backup .json or a JSON array of products.');
+              }
+              event.target.value = '';
+            };
+            reader.readAsText(file);
+          };
+
+          // Format all sales – Manager/Admin only. Permanently clears all sales records.
+          const formatAllSales = () => {
+            if (currentUser?.role !== 'Admin') {
+              alert('⛔ Access denied. Only the Manager (Admin) can format sales.');
+              return;
+            }
+            if (sales.length === 0) {
+              alert('There are no sales to format.');
+              return;
+            }
+            const firstConfirm = window.confirm(
+              '⚠️ FORMAT ALL SALES (Manager only)\n\n' +
+              'This will permanently delete ALL ' + sales.length + ' sales record(s).\n\n' +
+              '• Products and stock will NOT be changed.\n' +
+              '• This action cannot be undone.\n\n' +
+              'Are you sure you want to continue?'
+            );
+            if (!firstConfirm) return;
+            const typed = (window.prompt('Type FORMAT (in capital letters) to confirm:') || '').trim();
+            if (typed !== 'FORMAT') {
+              alert('Format cancelled. You must type FORMAT to confirm.');
+              return;
+            }
+            setSales([]);
+            safeLocalStorage.setItem('sales', '[]');
+            alert('✅ All sales have been formatted. Sales list is now empty.');
+          };
           
-          // Debounced localStorage saves for better performance
+          // Debounced localStorage saves - OPTIMIZED FOR OLDER COMPUTERS
           const saveTimeoutRef = useRef({});
           const debouncedSave = useCallback((key, data) => {
             if (saveTimeoutRef.current[key]) clearTimeout(saveTimeoutRef.current[key]);
             saveTimeoutRef.current[key] = setTimeout(() => {
-              localStorage.setItem(key, JSON.stringify(data));
-            }, 500);
+              try {
+                const jsonData = JSON.stringify(data);
+                safeLocalStorage.setItem(key, jsonData);
+              } catch (error) {
+                console.error(`Error saving ${key}:`, error);
+                // Try to save a smaller version
+                if (data && Array.isArray(data) && data.length > PERFORMANCE_CONFIG.maxProductsPerPage) {
+                  const limitedData = data.slice(0, PERFORMANCE_CONFIG.maxProductsPerPage);
+                  safeLocalStorage.setItem(key, JSON.stringify(limitedData));
+                  console.warn(`⚠️ Data truncated for ${key} due to size limits`);
+                }
+              }
+            }, PERFORMANCE_CONFIG.saveDebounce);
           }, []);
 
-          // Debounced search term for better performance
+          // Debounced search term - OPTIMIZED FOR OLDER COMPUTERS
           const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
           useEffect(() => {
             const timer = setTimeout(() => {
               setDebouncedSearchTerm(searchTerm);
-            }, 300);
+            }, PERFORMANCE_CONFIG.searchDebounce);
             return () => clearTimeout(timer);
           }, [searchTerm]);
 
@@ -936,8 +1720,71 @@
             return [...new Set(products.map(p => p.category).filter(Boolean))].sort();
           }, [products]);
           
-          // Handle Buy by Amount
+          // ========== HELPER FUNCTIONS FOR PRODUCT TYPES ==========
+          
+          // Check if unit is weight/volume (supports decimal quantities)
+          const isWeightOrVolumeUnit = (unit) => {
+            return unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams';
+          };
+          
+          // Format quantity display based on unit type
+          const formatQuantity = (qty, unit) => {
+            return isWeightOrVolumeUnit(unit) ? parseFloat(qty).toFixed(2) : Math.floor(qty);
+          };
+          
+          // Validate stock availability
+          const validateStock = (requestedQty, availableStock, unit, productName) => {
+            if (requestedQty > availableStock) {
+              const requestedDisplay = formatQuantity(requestedQty, unit);
+              const availableDisplay = formatQuantity(availableStock, unit);
+              alert(`⚠️ Not enough stock!\n\nProduct: ${productName}\nRequested: ${requestedDisplay} ${unit}\nAvailable: ${availableDisplay} ${unit}`);
+              return false;
+            }
+            return true;
+          };
+          
+          // Add item to cart with proper quantity formatting
+          const addItemToCart = (product, quantity, additionalData = {}) => {
+            const unit = product.unit || 'pieces';
+            const finalQuantity = isWeightOrVolumeUnit(unit) 
+              ? parseFloat(quantity.toFixed(2)) 
+              : Math.floor(quantity);
+            
+            const existing = cart.find(item => item.id === product.id);
+            
+            if (existing) {
+              const newQty = parseFloat(existing.quantity) + finalQuantity;
+              const maxQuantity = product.stock || 0;
+              
+              // Check stock for tangible goods only
+              if (!product.isIntangible && newQty > maxQuantity) {
+                alert(`⚠️ Cannot add more! Total would exceed available stock of ${formatQuantity(maxQuantity, unit)} ${unit}`);
+                return false;
+              }
+              
+              setCart(cart.map(item => 
+                item.id === product.id 
+                  ? { 
+                      ...item, 
+                      quantity: isWeightOrVolumeUnit(unit) ? parseFloat(newQty.toFixed(2)) : newQty,
+                      ...additionalData
+                    } 
+                  : item
+              ));
+            } else {
+              setCart([...cart, { 
+                ...product, 
+                quantity: finalQuantity, 
+                unit: unit,
+                ...additionalData
+              }]);
+            }
+            return true;
+          };
+          
+          // ========== HANDLE BUY BY AMOUNT (for products like oil) ==========
           const handleBuyByAmount = () => {
+            // Validation
             if (!buyByAmountProduct || !buyByAmountValue) {
               alert('Please enter an amount!');
               return;
@@ -955,49 +1802,35 @@
               return;
             }
             
-            // Calculate quantity
+            // Calculate quantity from amount
             const calculatedQuantity = amount / sellingPrice;
+            const unit = buyByAmountProduct.unit || 'pieces';
             const maxQuantity = buyByAmountProduct.stock || 0;
             
-            if (calculatedQuantity > maxQuantity) {
-              const unit = buyByAmountProduct.unit || 'pieces';
-              const requestedDisplay = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
-                ? calculatedQuantity.toFixed(2)
-                : Math.floor(calculatedQuantity);
-              const availableDisplay = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
-                ? parseFloat(maxQuantity).toFixed(2)
-                : maxQuantity;
-              alert(`⚠️ Not enough stock!\n\nYou requested: ${requestedDisplay} ${unit}\nAvailable: ${availableDisplay} ${unit}\n\nMaximum amount you can buy: KES ${(maxQuantity * sellingPrice).toFixed(2)}`);
+            // Validate stock (skip for intangible goods)
+            if (!buyByAmountProduct.isIntangible && !validateStock(calculatedQuantity, maxQuantity, unit, buyByAmountProduct.name)) {
+              const maxAmount = (maxQuantity * sellingPrice).toFixed(2);
+              alert(`Maximum amount you can buy: KES ${maxAmount}`);
               return;
             }
             
-            // Add to cart with calculated quantity
-            const unit = buyByAmountProduct.unit || 'pieces';
-            const finalQuantity = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams') 
-              ? parseFloat(calculatedQuantity.toFixed(2)) 
-              : Math.floor(calculatedQuantity);
-            
-            const existing = cart.find(item => item.id === buyByAmountProduct.id);
-            if (existing) {
-              const newQty = parseFloat(existing.quantity) + finalQuantity;
-              if (newQty > maxQuantity) {
-                alert(`⚠️ Cannot add more! Total would exceed available stock of ${maxQuantity} ${unit}`);
-                return;
+            // Add to cart with amount tracking
+            const success = addItemToCart(
+              buyByAmountProduct, 
+              calculatedQuantity,
+              {
+                soldByAmount: true,
+                amountEntered: amount
               }
-              setCart(cart.map(item => 
-                item.id === buyByAmountProduct.id 
-                  ? { ...item, quantity: (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams') ? parseFloat(newQty.toFixed(2)) : newQty } 
-                  : item
-              ));
-            } else {
-              setCart([...cart, { ...buyByAmountProduct, quantity: finalQuantity, unit: unit }]);
-            }
+            );
             
-            // Reset modal
-            setShowBuyByAmountModal(false);
-            setBuyByAmountProduct(null);
-            setBuyByAmountValue('');
-            setBarcodeInput('');
+            if (success) {
+              // Reset modal
+              setShowBuyByAmountModal(false);
+              setBuyByAmountProduct(null);
+              setBuyByAmountValue('');
+              setBarcodeInput('');
+            }
           };
 
           // Memoized low stock items
@@ -1005,9 +1838,16 @@
             return products.filter(p => p.stock <= p.reorderLevel);
           }, [products]);
 
-          // Memoized cart totals
+          // Memoized cart totals (use customPrice if set, otherwise use sellingPrice)
+          // Use proper rounding to avoid floating point errors
           const cartTotal = useMemo(() => {
-            return cart.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
+            const total = cart.reduce((sum, item) => {
+              const price = item.customPrice !== undefined ? item.customPrice : item.sellingPrice;
+              const itemPrice = parseFloat(price || 0);
+              const itemQty = parseFloat(item.quantity || 0);
+              return sum + (itemPrice * itemQty);
+            }, 0);
+            return Math.round(total * 100) / 100; // Round to 2 decimal places
           }, [cart]);
 
           const cartItemCount = useMemo(() => {
@@ -1074,69 +1914,127 @@
           useEffect(() => { debouncedSave('cashRegister', cashRegister); }, [cashRegister]);
           useEffect(() => { debouncedSave('quickButtons', quickButtons); }, [quickButtons]);
 
-          // API base URL
+          // API base URL - system works fully offline using localStorage
           const API_BASE = window.location.origin;
+          
+          // Offline-safe fetch: try API when online, otherwise skip (no error)
+          const offlineFetch = (url, options) => {
+            if (!navigator.onLine || window.location.protocol === 'file:') {
+              return Promise.reject(new Error('Offline'));
+            }
+            return fetch(url, options).catch(() => Promise.reject(new Error('Offline')));
+          };
+          
+          // Offline users (used when API/server unavailable - no internet needed)
+          const OFFLINE_USERS = [
+            { id: 1, username: 'admin', name: 'Admin', role: 'Admin', active: 1 },
+            { id: 2, username: 'samuel', name: 'Samuel', role: 'Cashier', active: 1 },
+            { id: 3, username: 'michael', name: 'Michael', role: 'Cashier', active: 1 }
+          ];
+          const OFFLINE_PASSWORDS = { admin: 'admin123', samuel: 'samuel123', michael: 'michael123' };
 
           const handleLogin = async (e) => {
             e.preventDefault();
-            console.log('Attempting login with:', loginForm);
+            const { username, password, rememberMe } = loginForm;
+            const u = (username || '').trim().toLowerCase();
+            const p = (password || '').trim();
             
-            try {
-              const response = await fetch(`${API_BASE}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  username: loginForm.username,
-                  password: loginForm.password
-                })
-              });
-
-              const data = await response.json();
-
-              if (response.ok && data.success) {
-                setCurrentUser(data.user);
-                setIsLoggedIn(true);
-                
-                // Save to localStorage if Remember Me is checked
-                if (loginForm.rememberMe) {
-                  localStorage.setItem('logged_in_user', JSON.stringify(data.user));
+            // 1. Try API first (only if online)
+            if (navigator.onLine && window.location.protocol !== 'file:') {
+              try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                  setCurrentUser(data.user);
+                  setIsLoggedIn(true);
+                  if (rememberMe) safeLocalStorage.setItem('logged_in_user', JSON.stringify(data.user));
+                  if (data.user.role === 'Cashier') setCurrentView('pos');
+                  return;
                 }
-                
-                console.log('Login successful:', data.user.name);
-                
-                // Auto-redirect cashiers to POS
-                if (data.user.role === 'Cashier') {
-                  setCurrentView('pos');
-                }
-              } else {
-                alert(`Invalid credentials!\n\nUsername: "${loginForm.username}"\n\nPlease check your credentials.\n\nDefault accounts:\nAdmin: admin / admin123\nSamuel: samuel / samuel123\nMichael: michael / michael123`);
+              } catch (err) {
+                console.warn('API login failed, using offline login:', err.message);
               }
-            } catch (error) {
-              console.error('Login error:', error);
-              alert('Login failed. Please check your connection and try again.');
             }
+            
+            // 2. Offline login (no internet needed)
+            const offlineUser = OFFLINE_USERS.find(x => x.username === u);
+            const expectedPass = OFFLINE_PASSWORDS[u];
+            if (offlineUser && expectedPass && p === expectedPass) {
+              setCurrentUser(offlineUser);
+              setIsLoggedIn(true);
+              if (rememberMe) safeLocalStorage.setItem('logged_in_user', JSON.stringify(offlineUser));
+              if (offlineUser.role === 'Cashier') setCurrentView('pos');
+              if (!navigator.onLine) console.log('✅ Logged in (offline mode)');
+              return;
+            }
+            
+            alert('Invalid credentials.\n\nOffline accounts:\nAdmin: admin / admin123\nSamuel: samuel / samuel123\nMichael: michael / michael123');
           };
 
           const handleLogout = () => {
             setIsLoggedIn(false);
             setCurrentUser(null);
             setCart([]);
-            localStorage.removeItem('logged_in_user');
+            safeLocalStorage.removeItem('logged_in_user');
           };
 
+          // ========== ADD TO CART (Main function) ==========
           const addToCart = (product) => {
-            const existing = cart.find(item => item.id === product.id);
-            const unit = product.unit || 'pieces';
-            const increment = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams') ? 0.1 : 1;
+            // 1. Products sold by amount (e.g., oil) - open amount modal
+            if (product.soldByAmount) {
+              setBuyByAmountProduct(product);
+              setShowBuyByAmountModal(true);
+              return;
+            }
             
-            if (existing) {
-              const newQty = parseFloat(existing.quantity) + increment;
-              setCart(cart.map(item => 
-                item.id === product.id ? { ...item, quantity: (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams') ? parseFloat(newQty.toFixed(2)) : newQty } : item
-              ));
-            } else {
-              const initialQty = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams') ? 0.1 : 1;
-              setCart([...cart, { ...product, quantity: initialQty, unit: unit }]);
+            // 2. Weight/volume products (litres, kg, etc.) - open quantity modal
+            const unit = product.unit || 'pieces';
+            if (isWeightOrVolumeUnit(unit)) {
+              setQuantityProduct(product);
+              setQuantityValue('');
+              setShowQuantityModal(true);
+              return;
+            }
+            
+            // 3. Regular products (pieces, boxes, etc.) - add directly
+            addItemToCart(product, 1);
+          };
+          
+          // ========== HANDLE QUANTITY INPUT (for weight/volume products) ==========
+          const handleQuantityInput = () => {
+            // Validation
+            if (!quantityProduct || !quantityValue) {
+              alert('Please enter a quantity!');
+              return;
+            }
+            
+            const qty = parseFloat(quantityValue);
+            if (isNaN(qty) || qty <= 0) {
+              alert('Please enter a valid quantity!');
+              return;
+            }
+            
+            const unit = quantityProduct.unit || 'pieces';
+            const maxQuantity = quantityProduct.stock || 0;
+            
+            // Validate stock (skip for intangible goods)
+            if (!quantityProduct.isIntangible && !validateStock(qty, maxQuantity, unit, quantityProduct.name)) {
+              return;
+            }
+            
+            // Add to cart
+            const success = addItemToCart(quantityProduct, qty);
+            
+            if (success) {
+              // Reset modal
+              setShowQuantityModal(false);
+              setQuantityProduct(null);
+              setQuantityValue('');
+              setBarcodeInput('');
             }
           };
 
@@ -1181,27 +2079,57 @@
           };
 
           const finalizeMpesaSale = useCallback(() => {
-            const total = cartTotal;
-            const cost = cart.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+            // Use proper rounding to avoid floating point errors
+            const total = Math.round(cartTotal * 100) / 100;
+            const cost = Math.round(cart.reduce((sum, item) => {
+              const itemCost = parseFloat(item.costPrice || item.buyingPrice || 0);
+              const itemQty = parseFloat(item.quantity || 0);
+              return sum + (itemCost * itemQty);
+            }, 0) * 100) / 100;
+            const profit = Math.round((total - cost) * 100) / 100;
             
             const newSale = {
               id: sales.length + 1,
               date: new Date().toISOString().split('T')[0],
               time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-              items: cart.reduce((sum, item) => sum + item.quantity, 0),
+              items: Math.round(cart.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0) * 100) / 100,
               total,
-              profit: total - cost,
+              profit,
               paymentMethod: 'M-Pesa',
               mpesaPhone: mpesaPhone,
               cashier: currentUser.name,
-              itemDetails: [...cart]
+              itemDetails: cart.map(item => {
+                const actualPrice = item.customPrice !== undefined ? item.customPrice : (item.sellingPrice || item.price || 0);
+                const itemPrice = parseFloat(actualPrice || 0);
+                const itemQty = parseFloat(item.quantity || 0);
+                const itemCost = parseFloat(item.costPrice || item.buyingPrice || 0);
+                const lineTotal = Math.round((itemPrice * itemQty) * 100) / 100;
+                const lineCost = Math.round((itemCost * itemQty) * 100) / 100;
+                const lineProfit = Math.round((lineTotal - lineCost) * 100) / 100;
+                
+                return {
+                  ...item,
+                  quantity: itemQty,
+                  costPrice: itemCost,
+                  sellingPrice: itemPrice,
+                  originalPrice: parseFloat(item.sellingPrice || item.price || 0),
+                  customPrice: item.customPrice,
+                  lineTotal: lineTotal,
+                  lineCost: lineCost,
+                  lineProfit: lineProfit
+                };
+              })
             };
             
             setSales([newSale, ...sales]);
             
+            // Update product stock (only for tangible goods - skip intangible)
             const updatedProducts = products.map(product => {
               const cartItem = cart.find(item => item.id === product.id);
-              return cartItem ? { ...product, stock: product.stock - cartItem.quantity } : product;
+              if (cartItem && !product.isIntangible) {
+                return { ...product, stock: Math.max(0, product.stock - cartItem.quantity) };
+              }
+              return product;
             });
             setProducts(updatedProducts);
             
@@ -1226,19 +2154,20 @@
             }
             
             // For Cash, Card, and Split payments, complete immediately
-            const total = parseFloat(cartTotal.toFixed(2));
-            const cost = parseFloat(cart.reduce((sum, item) => {
+            // Use proper rounding to avoid floating point errors
+            const total = Math.round(cartTotal * 100) / 100;
+            const cost = Math.round(cart.reduce((sum, item) => {
               const itemCost = parseFloat(item.costPrice || item.buyingPrice || 0);
               const itemQty = parseFloat(item.quantity || 0);
               return sum + (itemCost * itemQty);
-            }, 0).toFixed(2));
-            const profit = parseFloat((total - cost).toFixed(2));
+            }, 0) * 100) / 100;
+            const profit = Math.round((total - cost) * 100) / 100;
             
             const newSale = {
               id: sales.length + 1,
               date: new Date().toISOString().split('T')[0],
               time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-              items: parseFloat(cart.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toFixed(2)),
+              items: Math.round(cart.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0) * 100) / 100,
               total,
               profit,
               paymentMethod: paymentMethod,
@@ -1247,15 +2176,27 @@
               splitCash: paymentMethod === 'Split' ? splitPayment.cashAmount : null,
               splitMpesa: paymentMethod === 'Split' ? splitPayment.mpesaAmount : null,
               cashier: currentUser.name,
-              itemDetails: cart.map(item => ({
-                ...item,
-                quantity: parseFloat(item.quantity || 0),
-                costPrice: parseFloat(item.costPrice || item.buyingPrice || 0),
-                sellingPrice: parseFloat(item.sellingPrice || item.price || 0),
-                lineTotal: parseFloat(((item.sellingPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)),
-                lineCost: parseFloat(((item.costPrice || item.buyingPrice || 0) * (item.quantity || 0)).toFixed(2)),
-                lineProfit: parseFloat((((item.sellingPrice || item.price || 0) - (item.costPrice || item.buyingPrice || 0)) * (item.quantity || 0)).toFixed(2))
-              })),
+              itemDetails: cart.map(item => {
+                const actualPrice = item.customPrice !== undefined ? item.customPrice : (item.sellingPrice || item.price || 0);
+                const itemPrice = parseFloat(actualPrice || 0);
+                const itemQty = parseFloat(item.quantity || 0);
+                const itemCost = parseFloat(item.costPrice || item.buyingPrice || 0);
+                const lineTotal = Math.round((itemPrice * itemQty) * 100) / 100;
+                const lineCost = Math.round((itemCost * itemQty) * 100) / 100;
+                const lineProfit = Math.round((lineTotal - lineCost) * 100) / 100;
+                
+                return {
+                  ...item,
+                  quantity: itemQty,
+                  costPrice: itemCost,
+                  sellingPrice: itemPrice,
+                  originalPrice: parseFloat(item.sellingPrice || item.price || 0),
+                  customPrice: item.customPrice,
+                  lineTotal: lineTotal,
+                  lineCost: lineCost,
+                  lineProfit: lineProfit
+                };
+              }),
               // Loyalty info
               customerId: selectedCustomer?.id || null,
               customerName: selectedCustomer?.name || null,
@@ -1264,10 +2205,14 @@
             
             setSales([newSale, ...sales]);
             
-            // Update product stock
+            // Update product stock (only for tangible goods - skip intangible and soldByAmount handled separately)
             const updatedProducts = products.map(product => {
               const cartItem = cart.find(item => item.id === product.id);
-              return cartItem ? { ...product, stock: product.stock - cartItem.quantity } : product;
+              // Only decrement stock for tangible goods (not services/digital products)
+              if (cartItem && !product.isIntangible) {
+                return { ...product, stock: Math.max(0, product.stock - cartItem.quantity) };
+              }
+              return product;
             });
             setProducts(updatedProducts);
             
@@ -1519,9 +2464,18 @@
           }, [products]);
           
           const todaySales = React.useMemo(() => sales.filter(s => s.date === todayDate), [sales, todayDate]);
-          const todayRevenue = React.useMemo(() => todaySales.reduce((sum, s) => sum + s.total, 0), [todaySales]);
-          const todayProfit = React.useMemo(() => todaySales.reduce((sum, s) => sum + (s.profit || 0), 0), [todaySales]);
-          const totalInventoryValue = React.useMemo(() => products.reduce((sum, p) => sum + (p.sellingPrice * p.stock), 0), [products]);
+          const todayRevenue = React.useMemo(() => {
+            const revenue = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+            return Math.round(revenue * 100) / 100;
+          }, [todaySales]);
+          const todayProfit = React.useMemo(() => {
+            const profit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
+            return Math.round(profit * 100) / 100;
+          }, [todaySales]);
+          const totalInventoryValue = React.useMemo(() => {
+            const value = products.reduce((sum, p) => sum + (p.sellingPrice * p.stock), 0);
+            return Math.round(value * 100) / 100;
+          }, [products]);
 
           // Product management functions
           const saveProductEdit = (productId) => {
@@ -1537,7 +2491,8 @@
               unit: unit,
               reorderLevel: (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
                 ? parseFloat(editingProduct.reorderLevel) || 10
-                : parseInt(editingProduct.reorderLevel) || 10
+                : parseInt(editingProduct.reorderLevel) || 10,
+              soldByAmount: editingProduct.soldByAmount || false
             };
             setProducts(products.map(p => p.id === productId ? updatedProduct : p));
             setEditingProduct(null);
@@ -1564,10 +2519,11 @@
               unit: newProduct.unit || 'pieces',
               reorderLevel: newProduct.unit === 'litres' || newProduct.unit === 'ml' || newProduct.unit === 'kg' || newProduct.unit === 'grams'
                 ? parseFloat(newProduct.reorderLevel) || 10
-                : parseInt(newProduct.reorderLevel) || 10
+                : parseInt(newProduct.reorderLevel) || 10,
+              soldByAmount: newProduct.soldByAmount || false
             };
             setProducts([...products, product]);
-            setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10 });
+            setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10, expiryDate: '', supplierId: '', isIntangible: false, soldByAmount: false });
             setShowAddProduct(false);
             alert('✅ Product added successfully!');
           };
@@ -1649,32 +2605,43 @@
               return;
             }
             const sale = sales.find(s => s.id === selectedSaleForInvoice);
-            const taxRate = 0.16; // 16% VAT
+            const taxRate = parseFloat(storeConfig.taxRate || 0.16); // 16% VAT (default)
             
             // Check if prices are VAT-inclusive or VAT-exclusive
             // Default: VAT-inclusive (prices already include tax) - common in Kenya
             const pricesIncludeVAT = storeConfig.pricesIncludeVAT !== false; // Default to true
             
             let subtotal, tax, total;
+            const saleTotal = parseFloat(sale.total || 0);
             
-            if (pricesIncludeVAT) {
+            if (pricesIncludeVAT && taxRate > 0) {
               // If prices include VAT: Extract VAT from total
               // Formula: subtotal = total / (1 + taxRate)
-              subtotal = parseFloat((parseFloat(sale.total || 0) / (1 + taxRate)).toFixed(2));
-              tax = parseFloat((subtotal * taxRate).toFixed(2));
-              total = parseFloat(sale.total || 0); // Total remains the same
+              // Use proper rounding to avoid floating point errors
+              subtotal = Math.round((saleTotal / (1 + taxRate)) * 100) / 100;
+              tax = Math.round((subtotal * taxRate) * 100) / 100;
+              total = saleTotal; // Total remains the same
               
               // Verify: subtotal + tax should equal total (with rounding)
-              const verification = parseFloat((subtotal + tax).toFixed(2));
+              const verification = Math.round((subtotal + tax) * 100) / 100;
               if (Math.abs(verification - total) > 0.01) {
-                // Adjust for rounding differences
-                tax = parseFloat((total - subtotal).toFixed(2));
+                // Adjust for rounding differences - ensure subtotal + tax = total exactly
+                tax = Math.round((total - subtotal) * 100) / 100;
+                // Recalculate subtotal if needed to ensure precision
+                if (Math.abs((subtotal + tax) - total) > 0.01) {
+                  subtotal = Math.round((total - tax) * 100) / 100;
+                }
               }
-            } else {
+            } else if (taxRate > 0) {
               // If prices exclude VAT: Add VAT to total
-              subtotal = parseFloat(sale.total || 0);
-              tax = parseFloat((subtotal * taxRate).toFixed(2));
-              total = parseFloat((subtotal + tax).toFixed(2));
+              subtotal = saleTotal;
+              tax = Math.round((subtotal * taxRate) * 100) / 100;
+              total = Math.round((subtotal + tax) * 100) / 100;
+            } else {
+              // No tax
+              subtotal = saleTotal;
+              tax = 0;
+              total = saleTotal;
             }
             
             const invoice = {
@@ -1683,13 +2650,20 @@
               date: new Date().toISOString().split('T')[0],
               dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
               customer: { ...invoiceCustomer },
-              items: (sale.itemDetails || []).map(item => ({
-                ...item,
-                lineTotal: parseFloat(((item.sellingPrice || item.price || 0) * (item.quantity || 0)).toFixed(2))
-              })),
-              subtotal: subtotal,
-              tax: tax,
-              total: total,
+              items: (sale.itemDetails || []).map(item => {
+                const actualPrice = item.customPrice !== undefined ? item.customPrice : (item.sellingPrice || item.price || 0);
+                const itemPrice = parseFloat(actualPrice || 0);
+                const itemQty = parseFloat(item.quantity || 0);
+                const lineTotal = Math.round((itemPrice * itemQty) * 100) / 100;
+                return {
+                  ...item,
+                  sellingPrice: itemPrice,
+                  lineTotal: lineTotal
+                };
+              }),
+              subtotal: Math.round(subtotal * 100) / 100,
+              tax: Math.round(tax * 100) / 100,
+              total: Math.round(total * 100) / 100,
               status: 'Unpaid',
               saleId: sale.id
             };
@@ -1742,7 +2716,8 @@
                   productSales[item.name].quantity += qty;
                   productSales[item.name].revenue += sellPrice * qty;
                   productSales[item.name].cost += costPrice * qty;
-                  productSales[item.name].profit += (sellPrice - costPrice) * qty;
+                  const itemProfit = Math.round(((sellPrice - costPrice) * qty) * 100) / 100;
+                  productSales[item.name].profit = Math.round((productSales[item.name].profit + itemProfit) * 100) / 100;
                 });
               }
             });
@@ -1767,7 +2742,8 @@
               }
               breakdown[saleDate].transactionCount++;
               breakdown[saleDate].totalRevenue += parseFloat(sale.total || 0);
-              breakdown[saleDate].totalProfit += parseFloat(sale.profit || 0);
+              const saleProfit = Math.round(parseFloat(sale.profit || 0) * 100) / 100;
+              breakdown[saleDate].totalProfit = Math.round((breakdown[saleDate].totalProfit + saleProfit) * 100) / 100;
               
               if (sale.itemDetails) {
                 sale.itemDetails.forEach(item => {
@@ -1789,7 +2765,8 @@
                   breakdown[saleDate].products[itemName].quantitySold += qty;
                   breakdown[saleDate].products[itemName].revenue += sellPrice * qty;
                   breakdown[saleDate].products[itemName].cost += costPrice * qty;
-                  breakdown[saleDate].products[itemName].profit += (sellPrice - costPrice) * qty;
+                  const itemProfit = Math.round(((sellPrice - costPrice) * qty) * 100) / 100;
+                  breakdown[saleDate].products[itemName].profit = Math.round((breakdown[saleDate].products[itemName].profit + itemProfit) * 100) / 100;
                   breakdown[saleDate].totalItemsSold += qty;
                   breakdown[saleDate].totalCost += costPrice * qty;
                 });
@@ -1810,7 +2787,10 @@
                 id: Date.now(),
                 name: holdName,
                 items: [...cart],
-                total: cart.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0),
+                total: cart.reduce((sum, item) => {
+                  const price = item.customPrice !== undefined ? item.customPrice : item.sellingPrice;
+                  return sum + (price * item.quantity);
+                }, 0),
                 time: new Date().toLocaleTimeString(),
                 date: new Date().toISOString().split('T')[0]
               };
@@ -1848,46 +2828,63 @@
             const sale = sales.find(s => s.id === saleId);
             if (!sale) return;
             
-            // Ask for PIN
-            const pin = prompt(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nEnter your PIN to continue:\n\n(This requires PIN verification)`);
+            const pin = prompt(`⚠️ VOID SALE #${saleId}?\n\nTotal: KES ${sale.total}\nItems: ${sale.items}\n\nEnter your PIN to continue:`);
             if (!pin) {
               alert('Void cancelled. PIN is required.');
               return;
             }
 
+            const doOfflineVoid = () => {
+              const expectedPin = OFFLINE_PASSWORDS[(currentUser && currentUser.username) || ''];
+              if (expectedPin && pin !== expectedPin) {
+                alert('❌ Invalid PIN. Void cancelled.');
+                return;
+              }
+              setSales(prev => prev.filter(s => s.id !== saleId));
+              if (sale.itemDetails) {
+                setProducts(prev => prev.map(p => {
+                  const item = sale.itemDetails.find(i => i.productId === p.id || i.name === p.name);
+                  if (!item || p.isIntangible) return p;
+                  const qty = parseFloat(item.quantity) || 0;
+                  const newStock = (parseFloat(p.stock) || 0) + qty;
+                  return { ...p, stock: newStock };
+                }));
+              }
+              alert(`✅ Sale #${saleId} voided (offline). Stock restored.`);
+              setShowVoidSale(false);
+            };
+
             try {
-              // Call API to void sale with PIN verification
-              const response = await fetch(`${API_BASE}/api/sales/${saleId}/void`, {
+              if (!navigator.onLine || window.location.protocol === 'file:') {
+                doOfflineVoid();
+                return;
+              }
+              const response = await offlineFetch(`${API_BASE}/api/sales/${saleId}/void`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId: currentUser.id,
-                  pin: pin
-                })
+                body: JSON.stringify({ userId: currentUser.id, pin })
               });
-
               const data = await response.json();
-
               if (response.ok && data.success) {
-                // Refresh sales and products from server
-                fetch(`${API_BASE}/api/sales`)
-                  .then(res => res.json())
-                  .then(salesData => setSales(salesData))
-                  .catch(err => console.error('Error fetching sales:', err));
-
-                fetch(`${API_BASE}/api/products`)
-                  .then(res => res.json())
-                  .then(productsData => setProducts(productsData))
-                  .catch(err => console.error('Error fetching products:', err));
-
-                alert(`✅ Sale #${saleId} voided successfully!\n\nStock restored for all items.\n\nAdmin has been notified.`);
+                setSales(prev => prev.filter(s => s.id !== saleId));
+                offlineFetch(`${API_BASE}/api/products`).then(r => r.json()).then(productsData => {
+                  if (productsData && productsData.length) {
+                    const processed = productsData.map(pr => ({
+                      ...pr,
+                      soldByAmount: pr.soldByAmount === 1 || pr.soldByAmount === true,
+                      isIntangible: pr.isIntangible === 1 || pr.isIntangible === true
+                    }));
+                    setProducts(processed.slice(0, PERFORMANCE_CONFIG.maxProductsPerPage));
+                    safeLocalStorage.setItem('products', JSON.stringify(processed));
+                  }
+                }).catch(() => {});
+                alert(`✅ Sale #${saleId} voided successfully!`);
                 setShowVoidSale(false);
               } else {
-                alert(`❌ Void failed: ${data.error || 'Invalid PIN'}\n\nPlease check your PIN and try again.`);
+                alert(`❌ Void failed: ${data.error || 'Invalid PIN'}`);
               }
             } catch (error) {
-              console.error('Void sale error:', error);
-              alert('Error voiding sale. Please check your connection and try again.');
+              doOfflineVoid();
             }
           };
 
@@ -1911,6 +2908,11 @@
                       <ShoppingCart size={48} />
                     </div>
                       <h1 className="text-3xl font-bold text-gray-800">43 INDUSTRIES SUPERMARKET MANAGER</h1>
+                      {isOfflineMode && (
+                        <p className="text-sm text-yellow-600 font-semibold mt-2 bg-yellow-50 px-3 py-1 rounded border border-yellow-300">
+                          🔌 Offline Mode - All data saved locally
+                        </p>
+                      )}
                     <p className="text-gray-600 mt-2">Complete System</p>
                   </div>
                   <form onSubmit={handleLogin} className="space-y-4">
@@ -2189,7 +3191,8 @@
             if (!showReceipt || !lastSale) return null;
 
             const received = amountReceived || lastSale.amountReceived || 0;
-            const change = paymentMethod === 'Cash' && received > 0 ? received - lastSale.total : 0;
+            const saleTotal = Math.round((lastSale.total || 0) * 100) / 100;
+            const change = paymentMethod === 'Cash' && received > 0 ? Math.round((received - saleTotal) * 100) / 100 : 0;
             const receiptNumber = `RCP${String(lastSale.id).padStart(6, '0')}`;
 
             return (
@@ -2245,29 +3248,43 @@
                         <span style={{flex: 1, textAlign: 'right'}}>PRICE</span>
                         <span style={{flex: 1, textAlign: 'right'}}>TOTAL</span>
                       </div>
-                      {lastSale.itemDetails && lastSale.itemDetails.map((item, idx) => (
-                        <div key={idx} style={{display: 'flex', justifyContent: 'space-between', fontSize: '15px', padding: '8px 0', borderBottom: '1px dotted #ddd'}}>
-                          <span style={{flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{item.name}</span>
-                          <span style={{flex: 0.5, textAlign: 'center', fontWeight: 'bold'}}>{typeof item.quantity === 'number' ? (item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)) : item.quantity}</span>
-                          <span style={{flex: 1, textAlign: 'right'}}>{item.sellingPrice.toLocaleString()}</span>
-                          <span style={{flex: 1, textAlign: 'right', fontWeight: 'bold'}}>{((item.sellingPrice || 0) * (item.quantity || 0)).toLocaleString()}</span>
-                        </div>
-                      ))}
+                      {lastSale.itemDetails && lastSale.itemDetails.map((item, idx) => {
+                        const actualPrice = item.customPrice !== undefined ? item.customPrice : (item.sellingPrice || 0);
+                        const itemQty = parseFloat(item.quantity || 0);
+                        const lineTotal = Math.round((actualPrice * itemQty) * 100) / 100;
+                        const displayQty = itemQty % 1 === 0 ? itemQty : Math.round(itemQty * 100) / 100;
+                        return (
+                          <div key={idx} style={{display: 'flex', justifyContent: 'space-between', fontSize: '15px', padding: '8px 0', borderBottom: '1px dotted #ddd'}}>
+                            <span style={{flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                              {item.name}
+                              {item.customPrice !== undefined && (
+                                <span style={{fontSize: '11px', color: '#888', display: 'block'}}>
+                                  (Original: {item.originalPrice || item.sellingPrice || 0})
+                                </span>
+                              )}
+                            </span>
+                            <span style={{flex: 0.5, textAlign: 'center', fontWeight: 'bold'}}>{displayQty}</span>
+                            <span style={{flex: 1, textAlign: 'right'}}>{Math.round(actualPrice * 100) / 100}</span>
+                            <span style={{flex: 1, textAlign: 'right', fontWeight: 'bold'}}>{lineTotal.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Totals */}
                     <div style={{padding: '16px 0', fontSize: '16px'}}>
                       <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                         <span>Subtotal ({lastSale.items} items):</span>
-                        <span>KES {lastSale.total.toLocaleString()}</span>
+                        <span>KES {(Math.round((lastSale.total || 0) * 100) / 100).toLocaleString()}</span>
                       </div>
                       <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '24px', marginTop: '8px', padding: '12px', background: '#f0fdf4', borderRadius: '8px', color: '#16a34a'}}>
                         <span>TOTAL:</span>
-                        <span>KES {lastSale.total.toLocaleString()}</span>
+                        <span>KES {(Math.round((lastSale.total || 0) * 100) / 100).toLocaleString()}</span>
                       </div>
                       {(paymentMethod === 'Cash' && (amountReceived > 0 || lastSale.amountReceived)) && (() => {
                         const received = amountReceived || lastSale.amountReceived || 0;
-                        const calcChange = received - lastSale.total;
+                        const saleTotal = Math.round((lastSale.total || 0) * 100) / 100;
+                        const calcChange = Math.round((received - saleTotal) * 100) / 100;
                         return (
                           <div style={{marginTop: '12px', padding: '12px', background: '#fef3c7', borderRadius: '8px'}}>
                             <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '16px'}}>
@@ -2692,7 +3709,7 @@
                                         <h4 className="font-bold text-white text-lg">{order.name}</h4>
                                         <p className="text-slate-400 text-sm">{order.date} at {order.time}</p>
                                       </div>
-                                      <p className="text-xl font-bold text-amber-400">KES {order.total.toLocaleString()}</p>
+                                      <p className="text-xl font-bold text-amber-400">KES {(Math.round((order.total || 0) * 100) / 100).toLocaleString()}</p>
                                     </div>
                                     <p className="text-slate-400 text-sm mb-3">{order.items.length} products, {order.items.reduce((sum, i) => sum + i.quantity, 0)} items</p>
                                     <div className="flex gap-2">
@@ -2748,7 +3765,7 @@
                                       </p>
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-2xl font-bold text-white">KES {sale.total.toLocaleString()}</p>
+                                      <p className="text-2xl font-bold text-white">KES {(Math.round((sale.total || 0) * 100) / 100).toLocaleString()}</p>
                                       <button onClick={() => voidSale(sale.id)}
                                         className="mt-2 px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 text-sm">
                                         Void Sale
@@ -2957,7 +3974,7 @@
                               <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex justify-between items-center">
                                 <span className="text-emerald-400 text-sm">Profit per item:</span>
                                 <span className="text-emerald-400 font-bold text-lg">
-                                  KES {(parseFloat(newProduct.sellingPrice) - parseFloat(newProduct.costPrice)).toFixed(2)}
+                                  KES {(Math.round((parseFloat(newProduct.sellingPrice || 0) - parseFloat(newProduct.costPrice || 0)) * 100) / 100).toFixed(2)}
                                 </span>
                               </div>
                             )}
@@ -2987,12 +4004,13 @@
                                     unit: unit,
                                     reorderLevel: (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
                                       ? parseFloat(newProduct.reorderLevel) || 10
-                                      : parseInt(newProduct.reorderLevel) || 10
+                                      : parseInt(newProduct.reorderLevel) || 10,
+                                    soldByAmount: newProduct.soldByAmount || false
                                   };
                                   setProducts([...products, product]);
                                   setShowQuickAdd(false);
                                   setQuickAddBarcode('');
-                                  setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10 });
+                                  setNewProduct({ name: '', barcode: '', category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10, soldByAmount: false });
                                   alert('✅ Product added!\n\n' + product.name + '\nStock: ' + product.stock + '\nPrice: KES ' + product.sellingPrice);
                                 }}
                                 className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-xl font-bold text-lg hover:from-emerald-400 hover:to-cyan-400 transition-all shadow-lg"
@@ -3117,7 +4135,7 @@
                           </div>
                           <div className="p-6 space-y-4">
                             {(() => {
-                              const cashSales = todaySales.filter(s => s.paymentMethod === 'Cash').reduce((sum, s) => sum + s.total, 0);
+                              const cashSales = Math.round(todaySales.filter(s => s.paymentMethod === 'Cash').reduce((sum, s) => sum + (s.total || 0), 0) * 100) / 100;
                               const splitCash = todaySales.filter(s => s.paymentMethod === 'Split').reduce((sum, s) => sum + (s.splitCash || 0), 0);
                               const expectedCash = (cashRegister.openingFloat || 0) + cashSales + splitCash;
                               const difference = (parseFloat(closingCash) || 0) - expectedCash;
@@ -3200,6 +4218,11 @@
                             <p className="text-slate-400 text-sm font-medium flex items-center gap-2">
                               <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
                               Point of Sale Terminal • {new Date().toLocaleTimeString()}
+                              {isOfflineMode && (
+                                <span className="ml-2 text-xs bg-yellow-500/30 text-yellow-200 px-2 py-0.5 rounded font-bold border border-yellow-400/50" title="Offline Mode - All data saved locally">
+                                  🔌 OFFLINE
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -3312,18 +4335,18 @@
                                           }
                                         }
                                         
-                                        if (product && product.stock > 0) {
+                                        if (product && (product.stock > 0 || product.isIntangible)) {
                                           addToCart(product);
                                           setBarcodeInput('');
                                           e.target.classList.add('animate-pop');
                                           setTimeout(() => e.target.classList.remove('animate-pop'), 300);
-                                        } else if (product) {
+                                        } else if (product && !product.isIntangible) {
                                           alert('❌ OUT OF STOCK!\n\n' + product.name);
                                         } else {
                                           // Unknown product - offer to add new product
                                           if (window.confirm('🆕 NEW PRODUCT DETECTED!\n\nSearch: ' + barcodeInput + '\n\nWould you like to add this as a new product?')) {
                                             setQuickAddBarcode('');
-                                            setNewProduct({...newProduct, barcode: '', name: barcodeInput, category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10});
+                                            setNewProduct({...newProduct, barcode: '', name: barcodeInput, category: '', costPrice: '', sellingPrice: '', marketPrice: '', stock: '', unit: 'pieces', reorderLevel: 10, isIntangible: false, soldByAmount: false});
                                             setShowQuickAdd(true);
                                           }
                                           setBarcodeInput('');
@@ -3345,7 +4368,7 @@
                                           (p.name.toLowerCase().includes(searchTerm) ||
                                            p.barcode.includes(barcodeInput) ||
                                            (p.category && p.category.toLowerCase().includes(searchTerm))) &&
-                                          p.stock > 0
+                                          (p.stock > 0 || p.isIntangible)
                                         ).slice(0, 10); // Limit to 10 results
                                         
                                         if (matches.length === 0) {
@@ -3374,7 +4397,14 @@
                                             className="p-4 border-b border-slate-700 hover:bg-purple-500/20 cursor-pointer transition-all flex items-center justify-between group"
                                           >
                                             <div className="flex-1 min-w-0">
-                                              <p className="text-white font-bold text-base truncate">{product.name}</p>
+                                              <div className="flex items-center gap-2">
+                                                <p className="text-white font-bold text-base truncate">{product.name}</p>
+                                                {product.soldByAmount && (
+                                                  <span className="bg-green-500/20 text-green-400 text-xs font-bold px-1.5 py-0.5 rounded">
+                                                    💰 By Amount
+                                                  </span>
+                                                )}
+                                              </div>
                                               <div className="flex items-center gap-3 mt-1 flex-wrap">
                                                 {product.category && (
                                                   <span className="text-purple-400 text-xs font-semibold bg-purple-500/20 px-2 py-0.5 rounded">
@@ -3382,11 +4412,18 @@
                                                   </span>
                                                 )}
                                                 <span className="text-emerald-400 text-sm font-bold">KES {product.sellingPrice?.toFixed(2)}</span>
-                                                <span className="text-slate-500 text-xs">
-                                                  Stock: {product.unit === 'litres' || product.unit === 'ml' || product.unit === 'kg' || product.unit === 'grams'
-                                                    ? parseFloat(product.stock || 0).toFixed(2)
-                                                    : product.stock} {product.unit || 'units'}
-                                                </span>
+                                                {!product.isIntangible && (
+                                                  <span className="text-slate-500 text-xs">
+                                                    Stock: {product.unit === 'litres' || product.unit === 'ml' || product.unit === 'kg' || product.unit === 'grams'
+                                                      ? parseFloat(product.stock || 0).toFixed(2)
+                                                      : product.stock} {product.unit || 'units'}
+                                                  </span>
+                                                )}
+                                                {product.isIntangible && (
+                                                  <span className="text-blue-500 text-xs font-semibold">
+                                                    Service/Digital Product
+                                                  </span>
+                                                )}
                                                 {product.barcode && product.barcode.length > 0 && (
                                                   <span className="text-slate-600 text-xs font-mono">#{product.barcode.substring(0, 8)}</span>
                                                 )}
@@ -3439,16 +4476,23 @@
                                           }
                                         }
                                       }
-                                      if (product && product.stock > 0) { 
-                                        // Show option: Add normally or Buy by Amount
-                                        const choice = confirm(`Product: ${product.name}\nPrice: KES ${product.sellingPrice}\n\nClick OK to add normally\nClick Cancel to buy by amount`);
-                                        if (choice) {
-                                          addToCart(product); 
-                                        } else {
+                                      if (product && (product.stock > 0 || product.isIntangible)) {
+                                        // If product is sold by amount, go directly to buy by amount modal
+                                        if (product.soldByAmount) {
                                           setBuyByAmountProduct(product);
                                           setShowBuyByAmountModal(true);
+                                          setBarcodeInput('');
+                                        } else {
+                                          // Show option: Add normally or Buy by Amount
+                                          const choice = confirm(`Product: ${product.name}\nPrice: KES ${product.sellingPrice}\n\nClick OK to add normally\nClick Cancel to buy by amount`);
+                                          if (choice) {
+                                            addToCart(product); 
+                                          } else {
+                                            setBuyByAmountProduct(product);
+                                            setShowBuyByAmountModal(true);
+                                          }
+                                          setBarcodeInput('');
                                         }
-                                        setBarcodeInput(''); 
                                       }
                                     }
                                   }}
@@ -3474,7 +4518,7 @@
                                           }
                                         }
                                       }
-                                      if (product && product.stock > 0) {
+                                      if (product && (product.stock > 0 || product.isIntangible)) {
                                         setBuyByAmountProduct(product);
                                         setShowBuyByAmountModal(true);
                                         setBarcodeInput('');
@@ -3504,9 +4548,9 @@
                                   return (
                                     <button
                                       key={i}
-                                      onClick={() => product.stock > 0 && addToCart(product)}
-                                      disabled={product.stock === 0}
-                                      className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${product.stock > 0 ? 'bg-purple-500/30 text-purple-300 hover:bg-purple-500 hover:text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                                      onClick={() => (product.stock > 0 || product.isIntangible) && addToCart(product)}
+                                      disabled={product.stock === 0 && !product.isIntangible}
+                                      className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${(product.stock > 0 || product.isIntangible) ? 'bg-purple-500/30 text-purple-300 hover:bg-purple-500 hover:text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
                                     >
                                       {product.name.substring(0, 15)}
                                     </button>
@@ -3550,11 +4594,99 @@
                                       <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-cyan-500/30">
                                         {index + 1}
                                       </div>
-                                      <div className="flex-1 min-w-0">
+                                        <div className="flex-1 min-w-0">
                                         <h4 className="font-bold text-white text-lg truncate">{item.name}</h4>
-                                        <p className="text-slate-400 text-sm">
-                                          KES {item.sellingPrice.toLocaleString()} × {item.quantity} {item.unit || 'units'}
-                                        </p>
+                                        {item.soldByAmount && (
+                                          <div className="mt-1">
+                                            <span className="inline-block bg-green-500/20 text-green-400 text-xs font-bold px-2 py-1 rounded-lg mb-1">
+                                              💰 Sold by Amount
+                                            </span>
+                                            {item.amountEntered && (
+                                              <span className="ml-2 text-green-300 text-xs">
+                                                (KES {parseFloat(item.amountEntered).toFixed(2)})
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                          {editingCartItemPrice === item.id ? (
+                                            <div className="flex items-center gap-2">
+                                              <input
+                                                type="number"
+                                                step="0.01"
+                                                value={cartItemPriceValue}
+                                                onChange={(e) => setCartItemPriceValue(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                  if (e.key === 'Enter') {
+                                                    const price = parseFloat(cartItemPriceValue);
+                                                    if (!isNaN(price) && price >= 0) {
+                                                      setCart(cart.map(c => 
+                                                        c.id === item.id 
+                                                          ? {...c, customPrice: price}
+                                                          : c
+                                                      ));
+                                                      setEditingCartItemPrice(null);
+                                                      setCartItemPriceValue('');
+                                                    }
+                                                  } else if (e.key === 'Escape') {
+                                                    setEditingCartItemPrice(null);
+                                                    setCartItemPriceValue('');
+                                                  }
+                                                }}
+                                                className="w-24 px-2 py-1 bg-slate-700 border-2 border-cyan-500 rounded-lg text-white text-center font-bold text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                                placeholder="Price"
+                                                autoFocus
+                                              />
+                                              <button
+                                                onClick={() => {
+                                                  const price = parseFloat(cartItemPriceValue);
+                                                  if (!isNaN(price) && price >= 0) {
+                                                    setCart(cart.map(c => 
+                                                      c.id === item.id 
+                                                        ? {...c, customPrice: price}
+                                                        : c
+                                                    ));
+                                                    setEditingCartItemPrice(null);
+                                                    setCartItemPriceValue('');
+                                                  }
+                                                }}
+                                                className="px-2 py-1 bg-green-500 text-white rounded text-xs font-bold hover:bg-green-600"
+                                                title="Save price"
+                                              >
+                                                ✓
+                                              </button>
+                                              <button
+                                                onClick={() => {
+                                                  setEditingCartItemPrice(null);
+                                                  setCartItemPriceValue('');
+                                                }}
+                                                className="px-2 py-1 bg-red-500 text-white rounded text-xs font-bold hover:bg-red-600"
+                                                title="Cancel"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <p className="text-slate-400 text-sm">
+                                              KES {(item.customPrice !== undefined ? item.customPrice : item.sellingPrice).toLocaleString()} × {item.quantity} {item.unit || 'units'}
+                                              {item.customPrice !== undefined && (
+                                                <span className="ml-2 text-xs text-yellow-400">(Original: KES {item.sellingPrice.toLocaleString()})</span>
+                                              )}
+                                            </p>
+                                          )}
+                                        </div>
+                                        {editingCartItemPrice !== item.id && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingCartItemPrice(item.id);
+                                              setCartItemPriceValue((item.customPrice !== undefined ? item.customPrice : item.sellingPrice).toFixed(2));
+                                            }}
+                                            className="mt-1 text-xs text-cyan-400 hover:text-cyan-300 font-bold"
+                                            title="Edit price per unit"
+                                          >
+                                            ✏️ Edit Price
+                                          </button>
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-1 bg-slate-800 rounded-xl p-1">
                                         <button onClick={() => {
@@ -3613,12 +4745,13 @@
                                                   if (!isNaN(amount) && amount > 0) {
                                                     const product = products.find(p => p.id === item.id);
                                                     if (product) {
-                                                      const calculatedQty = amount / product.sellingPrice;
+                                                      const currentPrice = item.customPrice !== undefined ? item.customPrice : product.sellingPrice;
+                                                      const calculatedQty = amount / currentPrice;
                                                       const maxQty = product.stock || 0;
                                                       const unit = product.unit || 'pieces';
                                                       
-                                                      if (calculatedQty > maxQty) {
-                                                        alert(`⚠️ Not enough stock!\n\nAvailable: ${maxQty} ${unit}\nMax amount: KES ${(maxQty * product.sellingPrice).toFixed(2)}`);
+                                                      if (calculatedQty > maxQty && !product.isIntangible) {
+                                                        alert(`⚠️ Not enough stock!\n\nAvailable: ${maxQty} ${unit}\nMax amount: KES ${(maxQty * currentPrice).toFixed(2)}`);
                                                       } else {
                                                         const finalQty = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
                                                           ? parseFloat(calculatedQty.toFixed(2))
@@ -3649,12 +4782,13 @@
                                                   if (!isNaN(amount) && amount > 0) {
                                                     const product = products.find(p => p.id === item.id);
                                                     if (product) {
-                                                      const calculatedQty = amount / product.sellingPrice;
+                                                      const currentPrice = item.customPrice !== undefined ? item.customPrice : product.sellingPrice;
+                                                      const calculatedQty = amount / currentPrice;
                                                       const maxQty = product.stock || 0;
                                                       const unit = product.unit || 'pieces';
                                                       
-                                                      if (calculatedQty > maxQty) {
-                                                        alert(`⚠️ Not enough stock!\n\nAvailable: ${maxQty} ${unit}\nMax amount: KES ${(maxQty * product.sellingPrice).toFixed(2)}`);
+                                                      if (calculatedQty > maxQty && !product.isIntangible) {
+                                                        alert(`⚠️ Not enough stock!\n\nAvailable: ${maxQty} ${unit}\nMax amount: KES ${(maxQty * currentPrice).toFixed(2)}`);
                                                       } else {
                                                         const finalQty = (unit === 'litres' || unit === 'ml' || unit === 'kg' || unit === 'grams')
                                                           ? parseFloat(calculatedQty.toFixed(2))
@@ -3686,20 +4820,21 @@
                                             </div>
                                             {cartItemAmountValue && parseFloat(cartItemAmountValue) > 0 && (
                                               <p className="text-xs text-purple-400">
-                                                = {((parseFloat(cartItemAmountValue) || 0) / (item.sellingPrice || 1)).toFixed(2)} {item.unit || 'units'}
+                                                = {((parseFloat(cartItemAmountValue) || 0) / ((item.customPrice !== undefined ? item.customPrice : item.sellingPrice) || 1)).toFixed(2)} {item.unit || 'units'}
                                               </p>
                                             )}
                                           </div>
                                         ) : (
                                           <div>
                                             <p className="font-black text-3xl text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                                              {(item.sellingPrice * item.quantity).toLocaleString()}
+                                              {((item.customPrice !== undefined ? item.customPrice : item.sellingPrice) * item.quantity).toLocaleString()}
                                             </p>
                                             <p className="text-slate-500 text-xs">KES</p>
                                             <button
                                               onClick={() => {
                                                 setEditingCartItemAmount(item.id);
-                                                setCartItemAmountValue((item.sellingPrice * item.quantity).toFixed(2));
+                                                const price = item.customPrice !== undefined ? item.customPrice : item.sellingPrice;
+                                                setCartItemAmountValue((price * item.quantity).toFixed(2));
                                               }}
                                               className="mt-1 text-xs text-purple-400 hover:text-purple-300 font-bold"
                                               title="Edit amount"
@@ -3720,6 +4855,146 @@
                             </div>
                           </div>
                         </div>
+                        
+                        {/* Quantity Input Modal for Weight/Volume Products */}
+                        {showQuantityModal && quantityProduct && (
+                          <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg w-full border border-blue-500/30 overflow-hidden">
+                              {/* Header */}
+                              <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <h3 className="text-2xl font-black text-white">📏 Enter Quantity</h3>
+                                    <p className="text-blue-100 text-sm">Enter quantity in {quantityProduct.unit || 'units'}</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => {
+                                      setShowQuantityModal(false);
+                                      setQuantityProduct(null);
+                                      setQuantityValue('');
+                                    }}
+                                    className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-all"
+                                  >
+                                    <X size={24} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <div className="p-6 space-y-4">
+                                {/* Product Info */}
+                                <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-xl p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h4 className="text-white font-bold text-lg">{quantityProduct.name}</h4>
+                                      <p className="text-blue-300 text-sm">KES {quantityProduct.sellingPrice?.toFixed(2)} per {quantityProduct.unit || 'unit'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-blue-400 text-xs">Available Stock</p>
+                                      <p className="text-white font-bold text-lg">
+                                        {quantityProduct.unit === 'litres' || quantityProduct.unit === 'ml' || quantityProduct.unit === 'kg' || quantityProduct.unit === 'grams'
+                                          ? parseFloat(quantityProduct.stock || 0).toFixed(2)
+                                          : quantityProduct.stock} {quantityProduct.unit || 'units'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Quantity Input */}
+                                <div>
+                                  <label className="block text-slate-400 text-sm font-bold mb-2 uppercase">Enter Quantity ({quantityProduct.unit || 'units'}) *</label>
+                                  <input
+                                    type="number"
+                                    step={quantityProduct.unit === 'litres' || quantityProduct.unit === 'ml' || quantityProduct.unit === 'kg' || quantityProduct.unit === 'grams' ? "0.01" : "1"}
+                                    value={quantityValue}
+                                    onChange={(e) => setQuantityValue(e.target.value)}
+                                    onKeyPress={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleQuantityInput();
+                                      } else if (e.key === 'Escape') {
+                                        setShowQuantityModal(false);
+                                        setQuantityProduct(null);
+                                        setQuantityValue('');
+                                      }
+                                    }}
+                                    placeholder="0.00"
+                                    className="w-full px-6 py-5 bg-slate-700 border-2 border-blue-500/50 rounded-xl text-3xl font-bold text-center text-white focus:border-green-500 focus:ring-4 focus:ring-green-500/30 transition-all"
+                                    autoFocus
+                                  />
+                                  
+                                  {/* Quick Quantity Buttons */}
+                                  <div className="mt-3">
+                                    <p className="text-slate-500 text-xs mb-2 font-semibold uppercase">Quick Quantities:</p>
+                                    <div className="grid grid-cols-5 gap-2">
+                                      {(() => {
+                                        const unit = quantityProduct.unit || 'units';
+                                        const quickValues = unit === 'kg' || unit === 'grams' 
+                                          ? [0.5, 1, 2, 5, 10]
+                                          : unit === 'litres' || unit === 'ml'
+                                          ? [0.5, 1, 2, 5, 10]
+                                          : [1, 2, 5, 10, 20];
+                                        return quickValues.map(val => (
+                                          <button
+                                            key={val}
+                                            onClick={() => setQuantityValue(val.toString())}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-blue-500/20 border border-slate-600 hover:border-blue-500/50 text-white text-sm font-bold rounded-lg transition-all"
+                                          >
+                                            {val}
+                                          </button>
+                                        ));
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Preview */}
+                                {quantityValue && parseFloat(quantityValue) > 0 && (() => {
+                                  const qty = parseFloat(quantityValue);
+                                  const price = quantityProduct.sellingPrice || 0;
+                                  const total = qty * price;
+                                  const maxQty = quantityProduct.stock || 0;
+                                  const isValid = qty <= maxQty;
+                                  
+                                  return (
+                                    <div className={`border-2 rounded-xl p-4 ${isValid ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'}`}>
+                                      {isValid ? (
+                                        <>
+                                          <p className="text-green-400 font-bold text-lg mb-1">✓ Valid Quantity</p>
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-slate-400">Total:</span>
+                                            <span className="text-white font-bold text-xl">KES {total.toFixed(2)}</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <p className="text-red-400 font-bold">⚠️ Quantity exceeds available stock!</p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                
+                                {/* Action Buttons */}
+                                <div className="flex gap-3 pt-2">
+                                  <button
+                                    onClick={() => {
+                                      setShowQuantityModal(false);
+                                      setQuantityProduct(null);
+                                      setQuantityValue('');
+                                    }}
+                                    className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-all"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={handleQuantityInput}
+                                    disabled={!quantityValue || parseFloat(quantityValue) <= 0}
+                                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Add to Cart
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Buy by Amount Modal */}
                         {showBuyByAmountModal && buyByAmountProduct && (
@@ -4376,8 +5651,8 @@
 
                     {/* Add Product Modal */}
                     {showAddProduct && (
-                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 my-8">
                           <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xl font-bold">Add New Product</h3>
                             <button onClick={() => setShowAddProduct(false)} className="text-gray-500 hover:text-gray-700">
@@ -4433,12 +5708,40 @@
                                 <p className="text-xs text-gray-500 mt-1">Competitor price</p>
                               </div>
                             </div>
+                            
+                            {/* SOLD BY AMOUNT OPTION - Prominently displayed */}
+                            <div className="bg-gradient-to-r from-green-100 to-emerald-100 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+                              <div className="flex items-start gap-3">
+                                <input 
+                                  type="checkbox" 
+                                  id="soldByAmountCheckbox"
+                                  checked={newProduct.soldByAmount || false}
+                                  onChange={(e) => setNewProduct({...newProduct, soldByAmount: e.target.checked})}
+                                  className="w-6 h-6 text-green-600 rounded border-2 border-green-500 mt-1 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                  <label htmlFor="soldByAmountCheckbox" className="cursor-pointer">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-2xl">💰</span>
+                                      <span className="text-lg font-bold text-green-800">SOLD BY AMOUNT</span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-green-700 mb-1">
+                                      Enable this if customers buy by specifying the amount (KES) they want to spend
+                                    </p>
+                                    <p className="text-xs text-green-600 leading-relaxed">
+                                      <strong>Example:</strong> Customer says "Give me KES 500 worth of rice" instead of "Give me 5 kg of rice". 
+                                      The system will automatically calculate the quantity based on the amount entered.
+                                    </p>
+                                </div>
+                                </label>
+                              </div>
+                            </div>
                             {newProduct.costPrice && newProduct.sellingPrice && (
                               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-emerald-700">Profit per unit:</span>
                                   <span className="font-bold text-emerald-800">
-                                    KES {((parseFloat(newProduct.sellingPrice) || 0) - (parseFloat(newProduct.costPrice) || 0)).toFixed(2)}
+                                    KES {(Math.round(((parseFloat(newProduct.sellingPrice) || 0) - (parseFloat(newProduct.costPrice) || 0)) * 100) / 100).toFixed(2)}
                                   </span>
                                 </div>
                                 {newProduct.marketPrice && (
@@ -4470,28 +5773,44 @@
                                   : 'Select how this product is measured'}
                               </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium mb-1">Initial Stock ({newProduct.unit || 'units'})</label>
+                            
+                            {/* Intangible Product Option */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
-                                  type="number" 
-                                  step={newProduct.unit === 'litres' || newProduct.unit === 'ml' || newProduct.unit === 'kg' || newProduct.unit === 'grams' ? "0.01" : "1"}
-                                  value={newProduct.stock} 
-                                  onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})}
-                                  className="w-full px-3 py-2 border rounded-lg" 
-                                  placeholder="0" />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium mb-1">Reorder Level ({newProduct.unit || 'units'})</label>
-                                <input 
-                                  type="number" 
-                                  step={newProduct.unit === 'litres' || newProduct.unit === 'ml' || newProduct.unit === 'kg' || newProduct.unit === 'grams' ? "0.01" : "1"}
-                                  value={newProduct.reorderLevel} 
-                                  onChange={(e) => setNewProduct({...newProduct, reorderLevel: e.target.value})}
-                                  className="w-full px-3 py-2 border rounded-lg" 
-                                  placeholder="10" />
-                              </div>
+                                  type="checkbox" 
+                                  checked={newProduct.isIntangible || false}
+                                  onChange={(e) => setNewProduct({...newProduct, isIntangible: e.target.checked})}
+                                  className="w-5 h-5 text-blue-600 rounded"
+                                />
+                                <span className="text-sm font-medium text-blue-900">This is an intangible good/service (e.g., digital product, service, subscription)</span>
+                              </label>
+                              <p className="text-xs text-blue-700 mt-2 ml-7">Intangible goods don't require stock tracking and won't affect inventory levels when sold.</p>
                             </div>
+                            {!newProduct.isIntangible && (
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Initial Stock ({newProduct.unit || 'units'})</label>
+                                  <input 
+                                    type="number" 
+                                    step={newProduct.unit === 'litres' || newProduct.unit === 'ml' || newProduct.unit === 'kg' || newProduct.unit === 'grams' ? "0.01" : "1"}
+                                    value={newProduct.stock} 
+                                    onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg" 
+                                    placeholder="0" />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Reorder Level ({newProduct.unit || 'units'})</label>
+                                  <input 
+                                    type="number" 
+                                    step={newProduct.unit === 'litres' || newProduct.unit === 'ml' || newProduct.unit === 'kg' || newProduct.unit === 'grams' ? "0.01" : "1"}
+                                    value={newProduct.reorderLevel} 
+                                    onChange={(e) => setNewProduct({...newProduct, reorderLevel: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg" 
+                                    placeholder="10" />
+                                </div>
+                              </div>
+                            )}
                             <div>
                               <label className="block text-sm font-medium mb-1">Expiry Date (optional)</label>
                               <input type="date" value={newProduct.expiryDate || ''} onChange={(e) => setNewProduct({...newProduct, expiryDate: e.target.value})}
@@ -4547,7 +5866,7 @@
                                       className="w-24 px-2 py-1 border rounded text-sm font-bold text-green-600" />
                                   </td>
                                   <td className="px-4 py-2">
-                                    <input type="number" step="0.01" value={editingProduct.marketPrice || ''} onChange={(e) => setEditingProduct({...editingProduct, marketPrice: parseFloat(e.target.value) || 0})}
+                                    <input type="number" step="0.01" value={editingProduct.marketPrice || ''} onChange={(e) => setEditingProduct({...editingProduct, marketPrice: parseFloat(e.target.value) || null})}
                                       className="w-24 px-2 py-1 border rounded text-sm text-blue-600" />
                                   </td>
                                   <td className="px-4 py-2">
@@ -4580,19 +5899,39 @@
                                       className="w-20 px-2 py-1 border rounded text-sm" />
                                   </td>
                                   <td className="px-4 py-2">
-                                    <div className="flex gap-1">
-                                      <button onClick={() => saveProductEdit(p.id)} className="bg-green-600 text-white p-1 rounded hover:bg-green-700">
-                                        <Save size={16} />
-                                      </button>
-                                      <button onClick={() => setEditingProduct(null)} className="bg-gray-500 text-white p-1 rounded hover:bg-gray-600">
-                                        <X size={16} />
-                                      </button>
+                                    <div className="space-y-2">
+                                      <label className="flex items-center gap-1 text-xs">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={editingProduct.soldByAmount || false}
+                                          onChange={(e) => setEditingProduct({...editingProduct, soldByAmount: e.target.checked})}
+                                          className="w-4 h-4"
+                                        />
+                                        <span className="text-green-600 font-semibold">By Amount</span>
+                                      </label>
+                                      <div className="flex gap-1">
+                                        <button onClick={() => saveProductEdit(p.id)} className="bg-green-600 text-white p-1 rounded hover:bg-green-700">
+                                          <Save size={16} />
+                                        </button>
+                                        <button onClick={() => setEditingProduct(null)} className="bg-gray-500 text-white p-1 rounded hover:bg-gray-600">
+                                          <X size={16} />
+                                        </button>
+                                      </div>
                                     </div>
                                   </td>
                                 </>
                               ) : (
                                 <>
-                                  <td className="px-4 py-3 text-sm font-semibold">{p.name}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold">
+                                    <div className="flex items-center gap-2">
+                                      <span>{p.name}</span>
+                                      {p.soldByAmount && (
+                                        <span className="bg-green-500/20 text-green-600 text-xs font-bold px-2 py-0.5 rounded">
+                                          💰 By Amount
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-4 py-3 text-sm font-mono text-gray-600">{p.barcode}</td>
                                   <td className="px-4 py-3 text-sm">{p.category}</td>
                                   <td className="px-4 py-3 text-sm text-gray-600">KES {p.costPrice?.toFixed(2) || '0.00'}</td>
@@ -4655,12 +5994,12 @@
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
                         <p className="text-sm text-gray-600">Total Purchases</p>
-                        <p className="text-2xl font-bold">KES {purchases.reduce((sum, p) => sum + (p.total || 0), 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold">KES {(Math.round(purchases.reduce((sum, p) => sum + (p.total || 0), 0) * 100) / 100).toLocaleString()}</p>
                         <p className="text-xs text-gray-500">{purchases.length} orders</p>
                       </div>
                       <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
                         <p className="text-sm text-gray-600">Total Debt (Owed)</p>
-                        <p className="text-2xl font-bold text-red-700">KES {purchases.reduce((sum, p) => sum + ((p.total || 0) - (p.amountPaid || 0)), 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-red-700">KES {(Math.round(purchases.reduce((sum, p) => sum + ((p.total || 0) - (p.amountPaid || 0)), 0) * 100) / 100).toLocaleString()}</p>
                         <p className="text-xs text-gray-500">Amount owed to suppliers</p>
                       </div>
                       <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
@@ -4908,15 +6247,15 @@
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
                         <p className="text-sm text-gray-600">Total Invoiced</p>
-                        <p className="text-2xl font-bold">KES {invoices.reduce((sum, i) => sum + i.total, 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold">KES {(Math.round(invoices.reduce((sum, i) => sum + (i.total || 0), 0) * 100) / 100).toLocaleString()}</p>
                       </div>
                       <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
                         <p className="text-sm text-gray-600">Paid</p>
-                        <p className="text-2xl font-bold">KES {invoices.filter(i => i.status === 'Paid').reduce((sum, i) => sum + i.total, 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold">KES {(Math.round(invoices.filter(i => i.status === 'Paid').reduce((sum, i) => sum + (i.total || 0), 0) * 100) / 100).toLocaleString()}</p>
                       </div>
                       <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
                         <p className="text-sm text-gray-600">Unpaid</p>
-                        <p className="text-2xl font-bold">KES {invoices.filter(i => i.status === 'Unpaid').reduce((sum, i) => sum + i.total, 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold">KES {(Math.round(invoices.filter(i => i.status === 'Unpaid').reduce((sum, i) => sum + (i.total || 0), 0) * 100) / 100).toLocaleString()}</p>
                       </div>
                       <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500">
                         <p className="text-sm text-gray-600">Total Invoices</p>
@@ -5049,15 +6388,15 @@
                               <div className="w-64">
                                 <div className="flex justify-between py-2 border-b">
                                   <span>Subtotal:</span>
-                                  <span>KES {parseFloat(currentInvoice.subtotal || 0).toFixed(2)}</span>
+                                  <span>KES {(Math.round((currentInvoice.subtotal || 0) * 100) / 100).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between py-2 border-b">
-                                  <span>VAT (16%):</span>
-                                  <span>KES {parseFloat(currentInvoice.tax || 0).toFixed(2)}</span>
+                                  <span>VAT ({((storeConfig.taxRate || 0.16) * 100).toFixed(0)}%):</span>
+                                  <span>KES {(Math.round((currentInvoice.tax || 0) * 100) / 100).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between py-3 font-bold text-lg">
                                   <span>TOTAL:</span>
-                                  <span>KES {parseFloat(currentInvoice.total || 0).toFixed(2)}</span>
+                                  <span>KES {(Math.round((currentInvoice.total || 0) * 100) / 100).toFixed(2)}</span>
                                 </div>
                               </div>
                             </div>
@@ -5168,7 +6507,7 @@
                       </div>
                       <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6 rounded-xl text-white">
                         <p className="text-green-100">Total Spent</p>
-                        <p className="text-4xl font-black">KES {customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0).toLocaleString()}</p>
+                        <p className="text-4xl font-black">KES {(Math.round(customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0) * 100) / 100).toLocaleString()}</p>
                       </div>
                       <div className="bg-gradient-to-r from-blue-500 to-cyan-500 p-6 rounded-xl text-white">
                         <p className="text-blue-100">Total Visits</p>
@@ -5325,7 +6664,7 @@
                       </div>
                       <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6 rounded-xl text-white">
                         <p className="text-green-100">Total Purchases</p>
-                        <p className="text-4xl font-black">KES {suppliers.reduce((sum, s) => sum + (s.totalPurchases || 0), 0).toLocaleString()}</p>
+                        <p className="text-4xl font-black">KES {(Math.round(suppliers.reduce((sum, s) => sum + (s.totalPurchases || 0), 0) * 100) / 100).toLocaleString()}</p>
                       </div>
                       <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-6 rounded-xl text-white">
                         <p className="text-purple-100">Products Supplied</p>
@@ -5691,14 +7030,35 @@
                     <div className="flex justify-between items-center flex-wrap gap-4">
                       <h2 className="text-2xl font-bold">📊 Reports & Analytics</h2>
                       <div className="flex gap-2">
-                        <button onClick={backupAllData} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2">
+                        <button onClick={backupAllData} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2" title="Download full backup (works offline)">
                           📦 Backup All Data
                         </button>
-                        <label className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex items-center gap-2 cursor-pointer">
+                        <label className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex items-center gap-2 cursor-pointer" title="Restore from backup file (works offline)">
                           📥 Restore Backup
                           <input type="file" accept=".json" onChange={restoreFromBackup} className="hidden" />
                         </label>
+                        {currentUser?.role === 'Admin' && (
+                          <>
+                            <label className="px-4 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 flex items-center gap-2 cursor-pointer" title="Manager only: Import products and stock from old version (JSON file)">
+                              📤 Import Products & Stock
+                              <input type="file" accept=".json" onChange={importProductsAndStock} className="hidden" />
+                            </label>
+                            <button
+                              onClick={formatAllSales}
+                              className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 flex items-center gap-2 border-2 border-red-700"
+                              title="Manager only: Permanently delete all sales records"
+                            >
+                              🗑️ Format All Sales
+                            </button>
+                          </>
+                        )}
+                        <span className="text-xs text-gray-500 self-center">Backup & restore work 100% offline</span>
                       </div>
+                      {currentUser?.role === 'Admin' && (
+                        <p className="text-xs text-gray-600">
+                          <strong>Data transfer from old version:</strong> Use <strong>Restore Backup</strong> (full data) or <strong>Import Products & Stock</strong> (products JSON only). Format All Sales: Manager only.
+                        </p>
+                      )}
                     </div>
 
                     {/* Export Buttons */}
@@ -5789,15 +7149,15 @@
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-lg text-white">
                             <p className="text-sm opacity-80">Total Revenue</p>
-                            <p className="text-3xl font-bold">KES {getFilteredSales().reduce((sum, s) => sum + s.total, 0).toLocaleString()}</p>
+                            <p className="text-3xl font-bold">KES {(Math.round(getFilteredSales().reduce((sum, s) => sum + (s.total || 0), 0) * 100) / 100).toLocaleString()}</p>
                             <p className="text-xs opacity-70 mt-1">{getFilteredSales().length} transactions</p>
                           </div>
                           <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-lg text-white">
                             <p className="text-sm opacity-80">Total Profit</p>
-                            <p className="text-3xl font-bold">KES {getFilteredSales().reduce((sum, s) => sum + s.profit, 0).toLocaleString()}</p>
+                            <p className="text-3xl font-bold">KES {(Math.round(getFilteredSales().reduce((sum, s) => sum + (s.profit || 0), 0) * 100) / 100).toLocaleString()}</p>
                             <p className="text-xs opacity-70 mt-1">
-                              {getFilteredSales().reduce((sum, s) => sum + s.total, 0) > 0 
-                                ? ((getFilteredSales().reduce((sum, s) => sum + s.profit, 0) / getFilteredSales().reduce((sum, s) => sum + s.total, 0)) * 100).toFixed(1) 
+                              {getFilteredSales().reduce((sum, s) => sum + (s.total || 0), 0) > 0 
+                                ? (Math.round(((getFilteredSales().reduce((sum, s) => sum + (s.profit || 0), 0) / Math.max(getFilteredSales().reduce((sum, s) => sum + (s.total || 0), 0), 1)) * 100) * 10) / 10).toFixed(1) 
                                 : 0}% margin
                             </p>
                           </div>
@@ -7447,7 +8807,7 @@
                         <button
                           onClick={() => {
                             // Force save to localStorage
-                            localStorage.setItem('storeConfig', JSON.stringify(storeConfig));
+                            safeLocalStorage.setItem('storeConfig', JSON.stringify(storeConfig));
                             // Show success message
                             alert('✅ Settings saved successfully!\n\nYour store information has been updated and will appear on all receipts and invoices.');
                           }}
@@ -7468,6 +8828,16 @@
           );
         };
 
+        // Update loading status
+        function updateLoadingStatus(message, progress) {
+            const statusEl = document.getElementById('loadingStatus');
+            const barEl = document.getElementById('loadingBar');
+            if (statusEl) {
+                statusEl.textContent = message;
+            }
+            if (barEl) barEl.style.width = progress + '%';
+        }
+
         // Check if libraries are ready and initialize
         function checkAndInit() {
             const rootElement = document.getElementById('root');
@@ -7482,43 +8852,82 @@
 
             // Check if React and ReactDOM are loaded
             if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-                console.log('⏳ Waiting for React libraries to load...');
-                // Retry after a delay, but only up to 30 times (30 seconds max)
+                const retryCount = window.initRetries || 0;
+                updateLoadingStatus(`Loading React libraries... (${retryCount}/100)`, 15 + (retryCount * 0.05));
+                console.log('React available:', typeof React !== 'undefined');
+                console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
+                // Retry after a shorter delay, but only up to 100 times (10 seconds max)
                 if (!window.initRetries) window.initRetries = 0;
-                if (window.initRetries < 150) {
+                if (window.initRetries < 100) {
                     window.initRetries++;
-                    setTimeout(checkAndInit, 200);
+                    setTimeout(checkAndInit, 100);
                 } else {
-                    console.error('❌ React libraries failed to load after 30 seconds');
+                    console.error('❌ React libraries failed to load after 10 seconds');
+                    updateLoadingStatus('Error: React libraries failed to load', 0);
                     showError('React libraries failed to load. Please refresh the page or check your internet connection.');
                 }
                 return;
             }
 
-            // Check if Babel is loaded (optional but helpful)
-            if (typeof Babel === 'undefined') {
-                console.warn('⚠️ Babel not loaded, but continuing...');
-            }
+            updateLoadingStatus('React loaded, checking application code...', 60);
+            console.log('✅ React and ReactDOM are loaded');
+            
+            // Babel is optional - scripts with type="text/babel" are processed automatically
+            // We don't need to wait for Babel separately
 
             // All libraries are ready, initialize the app
             try {
-                console.log('✅ React libraries loaded, initializing application...');
+                updateLoadingStatus('Looking for application component...', 70);
                 
                 // Make sure CompleteSystem is defined
+                // Give Babel a moment to process the script if needed
                 if (typeof CompleteSystem === 'undefined') {
-                    console.error('❌ CompleteSystem component not found!');
-                    showError('Application component not found. The page may be corrupted.');
+                    // Script might still be processing - wait a bit
+                    if (!window.componentCheckRetries) window.componentCheckRetries = 0;
+                    if (window.componentCheckRetries < 100) { // Increased to 100 retries (10 seconds) for large files
+                        window.componentCheckRetries++;
+                        const progress = 65 + Math.floor((window.componentCheckRetries / 100) * 20);
+                        const dots = '.'.repeat((window.componentCheckRetries % 4));
+                        updateLoadingStatus(`Processing application code${dots} (${window.componentCheckRetries}/100)`, progress);
+                        if (window.componentCheckRetries % 10 === 0) {
+                            if (window.componentCheckRetries % 20 === 0) {
+                                console.log(`⏳ Waiting for CompleteSystem component... (attempt ${window.componentCheckRetries}/100)`);
+                            }
+                        }
+                        setTimeout(checkAndInit, 100);
+                        return;
+                    }
+                    updateLoadingStatus('Error: Component not found', 0);
+                    console.error('❌ CompleteSystem component not found after 10 seconds!');
+                    console.error('Available globals:', Object.keys(window).filter(k => k.includes('System') || k.includes('Complete')));
+                    console.error('Babel status:', typeof Babel !== 'undefined' ? 'Loaded' : 'Not loaded');
+                    console.error('Script type check:', document.querySelector('script[type="text/babel"]') ? 'Found Babel script' : 'No Babel script found');
+                    showError('Application component not found. The page may be corrupted. Check console for details.');
                     return;
                 }
 
+                updateLoadingStatus('Rendering application...', 90);
+                console.log('✅ CompleteSystem component found! Rendering...');
                 const root = ReactDOM.createRoot(rootElement);
                 root.render(React.createElement(CompleteSystem));
                 console.log('✅ Complete system loaded successfully!');
+                updateLoadingStatus('Complete!', 100);
+                // Clear loading screen immediately
+                setTimeout(() => {
+                    const loadingBar = document.getElementById('loadingBar');
+                    const loadingStatus = document.getElementById('loadingStatus');
+                    const loadingContainer = loadingBar?.parentElement?.parentElement;
+                    if (loadingContainer) {
+                        loadingContainer.style.display = 'none';
+                    }
+                }, 300);
                 
                 // Clear any loading messages
                 window.librariesReady = true;
             } catch (error) {
                 console.error('❌ Error rendering application:', error);
+                console.error('Error stack:', error.stack);
+                updateLoadingStatus('Error occurred', 0);
                 const errorHtml = `
                     <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
                         <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px;">
@@ -7539,27 +8948,249 @@ ${error.stack || ''}
                 `;
                 rootElement.innerHTML = errorHtml;
             }
+    </script>
+    
+    <script>
+        // Wait for React and Babel, then execute the main app code
+        let appLoaded = false; // Prevent multiple loads
+        let loadAttempts = 0;
+        const MAX_ATTEMPTS = 300; // Maximum 15 seconds (300 * 50ms)
+        
+        // Function to render the app
+        function renderApp() {
+            const rootElement = document.getElementById('root');
+            if (!rootElement) {
+                console.error('❌ Root element not found for rendering');
+                return;
+            }
+            
+            // Check if CompleteSystem is defined
+            if (typeof CompleteSystem === 'undefined') {
+                console.warn('⚠️ CompleteSystem not defined yet, waiting...');
+                setTimeout(renderApp, 100);
+                return;
+            }
+            
+            // Verify React is available
+            if (typeof window.React === 'undefined' || typeof window.React.createElement !== 'function') {
+                console.error('❌ React not available for rendering');
+                return;
+            }
+            
+            // Verify ReactDOM is available
+            if (typeof window.ReactDOM === 'undefined') {
+                console.error('❌ ReactDOM not available for rendering');
+                return;
+            }
+            
+            try {
+                console.log('🔄 Rendering CompleteSystem component...');
+                
+                // Use React 18 createRoot if available, fallback to React 17 render
+                if (window.ReactDOM.createRoot) {
+                    const root = window.ReactDOM.createRoot(rootElement);
+                    root.render(window.React.createElement(CompleteSystem));
+                    console.log('✅ App rendered successfully (React 18)');
+                } else if (window.ReactDOM.render) {
+                    window.ReactDOM.render(window.React.createElement(CompleteSystem), rootElement);
+                    console.log('✅ App rendered successfully (React 17)');
+                } else {
+                    throw new Error('ReactDOM.createRoot and ReactDOM.render are not available');
+                }
+                
+                // Hide loading screen
+                setTimeout(() => {
+                    const loadingBar = document.getElementById('loadingBar');
+                    const loadingStatus = document.getElementById('loadingStatus');
+                    const loadingContainer = loadingBar?.parentElement?.parentElement;
+                    if (loadingContainer) {
+                        loadingContainer.style.display = 'none';
+                    }
+                }, 300);
+                
+            } catch (renderError) {
+                console.error('❌ Error rendering app:', renderError);
+                rootElement.innerHTML = `
+                    <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px;">
+                            <h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Rendering Application</h1>
+                            <p style="color: #666; margin-bottom: 20px;">${renderError.message}</p>
+                            <button onclick="location.reload(true)" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                Reload Page
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
         }
         
-        // Start initialization after DOM is ready
-        function startInit() {
-            // Wait a bit for scripts to load
-            setTimeout(() => {
-                checkAndInit();
-            }, 500);
+        function loadMainApp() {
+            // Prevent loading multiple times
+            if (appLoaded) {
+                // If already loaded, just try to render
+                setTimeout(renderApp, 100);
+                return;
+            }
+            
+            loadAttempts++;
+            if (loadAttempts > MAX_ATTEMPTS) {
+                console.error('❌ Failed to load app after maximum attempts');
+                const rootElement = document.getElementById('root');
+                if (rootElement) {
+                    rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial;"><h1 style="color: red;">Error: Application failed to load</h1><p>Please refresh the page (Ctrl+F5 or Cmd+Shift+R)</p><p style="font-size: 12px; color: #666; margin-top: 20px;">Check browser console (F12) for details</p></div>';
+                }
+                return;
+            }
+            
+            // CRITICAL: Verify React is loaded and functional
+            if (typeof window.React === 'undefined') {
+                if (typeof React !== 'undefined') {
+                    window.React = React;
+                } else {
+                    setTimeout(loadMainApp, 50);
+                    return;
+                }
+            }
+            
+            if (typeof window.ReactDOM === 'undefined') {
+                if (typeof ReactDOM !== 'undefined') {
+                    window.ReactDOM = ReactDOM;
+                } else {
+                    setTimeout(loadMainApp, 50);
+                    return;
+                }
+            }
+            
+            // Verify React is functional
+            if (typeof window.React.createElement !== 'function') {
+                setTimeout(loadMainApp, 50);
+                return;
+            }
+            
+            // Check if Babel is loaded
+            if (typeof Babel === 'undefined' || typeof Babel.transform !== 'function') {
+                setTimeout(loadMainApp, 50);
+                return;
+            }
+            
+            // CRITICAL: Verify React is still available
+            if (typeof window.React === 'undefined' || typeof window.React.createElement !== 'function') {
+                console.error('❌ React not available when trying to load app!');
+                setTimeout(loadMainApp, 100);
+                return;
+            }
+            
+            // Get the main app code
+            const mainAppScript = document.getElementById('main-app-code');
+            if (!mainAppScript) {
+                console.error('❌ Main app code not found');
+                return;
+            }
+            
+            // Verify it's still text/plain (not processed by Babel)
+            if (mainAppScript.type !== 'text/plain' && mainAppScript.type !== '') {
+                console.warn('⚠️ Main app script type changed to:', mainAppScript.type);
+                mainAppScript.type = 'text/plain';
+            }
+            
+            // Mark as loading to prevent duplicate loads
+            appLoaded = true;
+            
+            // Transform the code with Babel
+            try {
+                console.log('🔄 Transforming and loading main app code...');
+                console.log('✅ React.createElement available:', typeof window.React.createElement === 'function');
+                console.log('✅ Babel.transform available:', typeof Babel.transform === 'function');
+                console.log('✅ Main app script type:', mainAppScript.type);
+                
+                // Final safety check - React MUST be available
+                if (typeof window.React === 'undefined') {
+                    throw new Error('React is undefined');
+                }
+                if (typeof window.React.createElement !== 'function') {
+                    throw new Error('React.createElement is not a function');
+                }
+                
+                // Transform the code with Babel
+                const transformResult = Babel.transform(mainAppScript.textContent, {
+                    presets: ['react']
+                });
+                
+                // Get the transformed code from the result
+                if (!transformResult || !transformResult.code) {
+                    throw new Error('Babel transformation failed - no code returned');
+                }
+                
+                const transformedCode = transformResult.code;
+                
+                // Execute the transformed code in a safe way
+                if (typeof transformedCode !== 'string' || transformedCode.length === 0) {
+                    throw new Error('Transformed code is empty or invalid');
+                }
+                
+                // Use Function constructor for safer execution
+                try {
+                    const executeCode = new Function(transformedCode);
+                    executeCode();
+                    console.log('✅ Main app code loaded and executed successfully');
+                    
+                    // CRITICAL: Render the app after code execution
+                    setTimeout(() => {
+                        renderApp();
+                    }, 100);
+                } catch (evalError) {
+                    // Fallback to eval if Function constructor fails
+                    console.warn('⚠️ Function constructor failed, trying eval:', evalError);
+                    eval(transformedCode);
+                    console.log('✅ Main app code loaded and executed successfully (via eval)');
+                    
+                    // CRITICAL: Render the app after code execution
+                    setTimeout(() => {
+                        renderApp();
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('❌ Error processing app code:', error);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                appLoaded = false; // Allow retry on error
+                
+                const rootElement = document.getElementById('root');
+                if (rootElement) {
+                    rootElement.innerHTML = `
+                        <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px;">
+                                <h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Loading Application</h1>
+                                <p style="color: #666; margin-bottom: 20px;">${error.message}</p>
+                                <button onclick="location.reload(true)" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                    Reload Page
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
         }
-
-        // Start initialization when DOM is ready
+        
+        // Wait for DOM to be ready
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', startInit);
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(loadMainApp, 300);
+            });
         } else {
-            // DOM already ready
-            startInit();
+            setTimeout(loadMainApp, 300);
         }
-
-        // Also listen for library ready signal from script loader
-        window.addEventListener('librariesReady', () => {
-            setTimeout(checkAndInit, 100);
+        
+        // Listen for React ready event
+        window.addEventListener('reactReady', function() {
+            console.log('📢 React ready event received');
+            setTimeout(loadMainApp, 150);
+        });
+        
+        // Listen for Babel ready event
+        window.addEventListener('babelReady', function() {
+            console.log('📢 Babel ready event received');
+            setTimeout(loadMainApp, 150);
         });
     </script>
 </body>

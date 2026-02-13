@@ -6,7 +6,19 @@
     <title>Supermarket POS System - Offline</title>
     <meta name="description" content="Complete supermarket management and POS system - Works offline">
     <meta name="theme-color" content="#3b82f6">
-    <link rel="manifest" href="./manifest.json" onerror="console.warn('⚠️ Manifest.json not found (non-critical)')" onload="console.log('✅ Manifest loaded')">
+    <!-- Manifest link - only load if not using file:// protocol to avoid CORS errors -->
+    <script>
+        if (window.location.protocol !== 'file:') {
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = './manifest.json';
+            manifestLink.onerror = () => console.warn('⚠️ Manifest.json not found (non-critical)');
+            manifestLink.onload = () => console.log('✅ Manifest loaded');
+            document.head.appendChild(manifestLink);
+        } else {
+            console.log('ℹ️ Manifest.json skipped (file:// protocol)');
+        }
+    </script>
     <!-- Icon removed - using default if not available -->
     <!-- Prevent caching - forces browser to reload latest version -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -80,6 +92,19 @@
             () => { babelLoaded = true; }
         );
         
+        // Suppress Tailwind CDN production warning (it's just a development notice)
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            // Suppress the Tailwind CDN production warning
+            if (message.includes('cdn.tailwindcss.com should not be used in production')) {
+                // Silently ignore - this is just a development notice
+                return;
+            }
+            // Allow all other warnings
+            originalWarn.apply(console, args);
+        };
+
         // Load optional scripts
         const tailwindScript = document.createElement('script');
         tailwindScript.src = libsPath + 'tailwind.js';
@@ -286,7 +311,19 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <!-- Loading screen -->
+        <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;">
+                <h1 style="color: #007bff; margin-bottom: 20px; font-size: 24px;">🔄 Loading Supermarket System...</h1>
+                <div style="width: 100%; height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="loadingBar" style="width: 0%; height: 100%; background: #007bff; transition: width 0.3s;"></div>
+                </div>
+                <p id="loadingStatus" style="color: #666; margin-bottom: 10px;">Initializing...</p>
+                <p style="color: #999; font-size: 12px;">Please wait while we load all components</p>
+            </div>
+        </div>
+    </div>
     
     <script type="text/babel">
         // Firebase initialization
@@ -5725,12 +5762,27 @@
           );
         };
 
+        // Update loading status
+        function updateLoadingStatus(message, progress) {
+            const statusEl = document.getElementById('loadingStatus');
+            const barEl = document.getElementById('loadingBar');
+            if (statusEl) {
+                statusEl.textContent = message;
+                console.log(`📊 Loading: ${message} (${progress}%)`);
+            }
+            if (barEl) barEl.style.width = progress + '%';
+        }
+
         // Initialize app with proper error handling
         function initApp() {
             console.log('🔧 initApp() called - checking libraries...');
             // Check if required libraries are loaded (Babel is optional)
             if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                const retryCount = window.initRetries || 0;
+                updateLoadingStatus(`Loading React libraries... (${retryCount}/150)`, 10 + (retryCount * 0.1));
                 console.log('⏳ Waiting for React libraries to load...');
+                console.log('React available:', typeof React !== 'undefined');
+                console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
                 // Retry after a delay, but only up to 150 times (30 seconds max)
                 if (!window.initRetries) window.initRetries = 0;
                 if (window.initRetries < 150) {
@@ -5738,6 +5790,7 @@
                     setTimeout(initApp, 200);
                 } else {
                     console.error('❌ React libraries failed to load after 30 seconds');
+                    updateLoadingStatus('Error: React libraries failed to load', 0);
                     const rootElement = document.getElementById('root');
                     if (rootElement) {
                         rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial;"><h1 style="color: red;">Error Loading Application</h1><p>React libraries failed to load. Please check that libs/react.min.js and libs/react-dom.min.js exist.</p><p>Or use a web server: node server.js</p></div>';
@@ -5746,9 +5799,13 @@
                 return;
             }
             
+            updateLoadingStatus('React loaded, checking application code...', 50);
+            
             // Check if Babel is loaded (optional but helpful)
             if (typeof Babel === 'undefined') {
                 console.warn('⚠️ Babel not loaded, but continuing...');
+            } else {
+                console.log('✅ Babel loaded');
             }
             
             const rootElement = document.getElementById('root');
@@ -5759,23 +5816,32 @@
             }
             
             try {
+                updateLoadingStatus('Looking for application component...', 60);
                 console.log('✅ Libraries loaded, initializing application...');
                 
                 // Make sure CompleteSystem is defined (it's in a Babel script, might need a moment)
                 if (typeof CompleteSystem === 'undefined') {
-                    console.log('⏳ CompleteSystem not yet defined, waiting... (this is normal for Babel scripts)');
-                    // Retry after a short delay - Babel might still be processing
                     if (!window.componentRetries) window.componentRetries = 0;
-                    if (window.componentRetries < 50) {
+                    if (window.componentRetries < 100) {
                         window.componentRetries++;
-                        setTimeout(initApp, 200);
+                        const progress = 60 + Math.floor((window.componentRetries / 100) * 25);
+                        const dots = '.'.repeat((window.componentRetries % 4));
+                        updateLoadingStatus(`Processing application code${dots} (${window.componentRetries}/100)`, progress);
+                        if (window.componentRetries % 10 === 0) {
+                            console.log(`⏳ CompleteSystem not yet defined, waiting... (attempt ${window.componentRetries}/100)`);
+                        }
+                        setTimeout(initApp, 100);
                         return;
                     } else {
                         console.error('❌ CompleteSystem component not found after waiting!');
+                        updateLoadingStatus('Error: Component not found', 0);
                         rootElement.innerHTML = '<div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px;"><h1 style="color: #dc3545; margin-bottom: 20px;">❌ Error Loading Application</h1><p style="color: #666; margin-bottom: 20px;">CompleteSystem component not found. The page may be corrupted or still loading.</p><p style="color: #999; font-size: 12px; margin-bottom: 20px;">If this persists, check the browser console (F12) for more details.</p><button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Reload Page</button></div></div>';
                         return;
                     }
                 }
+                
+                updateLoadingStatus('Rendering application...', 90);
+                console.log('✅ CompleteSystem component found! Rendering...');
                 
                 // Use ReactDOM.createRoot if available (React 18+), otherwise fallback to render (React 17-)
                 if (typeof ReactDOM.createRoot === 'function') {
@@ -5790,17 +5856,34 @@
                 } else {
                     throw new Error('ReactDOM.createRoot and ReactDOM.render are not available. React version might be incompatible.');
                 }
+                
+                updateLoadingStatus('Complete!', 100);
+                
+                // Clear loading screen after a brief delay
+                setTimeout(() => {
+                    const loadingBar = document.getElementById('loadingBar');
+                    const loadingStatus = document.getElementById('loadingStatus');
+                    const loadingContainer = loadingBar?.parentElement?.parentElement;
+                    if (loadingContainer) {
+                        loadingContainer.style.display = 'none';
+                    }
+                }, 300);
             } catch (error) {
                 console.error('❌ Error rendering application:', error);
+                console.error('Error stack:', error.stack);
+                updateLoadingStatus('Error occurred', 0);
                 rootElement.innerHTML = `
-                    <div style="padding: 50px; text-align: center; font-family: Arial;">
-                        <h1 style="color: red; margin-bottom: 20px;">Error Loading Application</h1>
-                        <p style="color: #666; margin-bottom: 10px;">There was an error loading the application:</p>
-                        <pre style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; max-width: 800px; margin: 0 auto;">
+                    <div style="padding: 50px; text-align: center; font-family: Arial; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px;">
+                            <h1 style="color: #dc3545; margin-bottom: 20px; font-size: 24px;">❌ Error Loading Application</h1>
+                            <p style="color: #666; margin-bottom: 20px;">There was an error loading the application:</p>
+                            <pre style="background: #f5f5f5; padding: 20px; text-align: left; overflow: auto; max-width: 100%; border-radius: 5px; font-size: 12px;">
 ${error.toString()}
 ${error.stack || ''}
-                        </pre>
-                        <p style="margin-top: 20px; color: #666;">Please check the browser console (F12) for more details.</p>
+                            </pre>
+                            <p style="margin-top: 20px; color: #666; font-size: 12px;">Please check the browser console (F12) for more details.</p>
+                            <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Reload Page</button>
+                        </div>
                     </div>
                 `;
             }
@@ -5818,11 +5901,9 @@ ${error.stack || ''}
         // Start initialization when DOM is ready
         function startInit() {
             console.log('🚀 startInit() called');
-            // Wait a bit for scripts to load, then try to initialize
-            setTimeout(() => {
-                console.log('⏰ Timeout reached in startInit, calling initApp...');
-                initApp();
-            }, 2000); // Increased to 2 seconds to give Babel more time
+            updateLoadingStatus('Waiting for libraries...', 5);
+            // Start checking immediately - don't wait
+            initApp();
         }
 
         if (document.readyState === 'loading') {
@@ -5841,7 +5922,8 @@ ${error.stack || ''}
     <script>
         // Skip Service Worker registration if using file:// protocol
         if (window.location.protocol === 'file:') {
-            console.warn('⚠️ Service Worker disabled: file:// protocol not supported. Use a web server (http://localhost) for full functionality.');
+            // This is expected and not an error - just informational
+            console.log('ℹ️ Service Worker disabled: file:// protocol not supported. System works offline using localStorage.');
         } else {
             // Only register Service Worker when using http:// or https://
             if ('serviceWorker' in navigator) {
